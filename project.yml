@@ -25,6 +25,7 @@ targets:
         GENERATE_INFOPLIST_FILE: true
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
+        ASSETCATALOG_COMPILER_APPICON_NAME: "App Icon & Top Shelf Image"
       configs:
         Release:
           CODE_SIGN_STYLE: Manual
