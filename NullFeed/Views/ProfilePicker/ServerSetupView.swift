@@ -19,7 +19,7 @@ struct ServerSetupView: View {
                 .foregroundStyle(NullFeedTheme.textSecondary)
 
             VStack(spacing: 24) {
-                TextField("http://192.168.1.100:\(AppConstants.defaultServerPort)", text: $viewModel.serverUrl)
+                TextField("http://192.168.20.158:\(AppConstants.defaultServerPort)", text: $viewModel.serverUrl)
                     .textFieldStyle(.plain)
                     .font(NullFeedTheme.bodyLarge)
                     .padding(20)
