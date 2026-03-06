@@ -91,9 +91,9 @@ jobs:
               <string>manual</string>
               <key>provisioningProfiles</key>
               <dict>
-                  <key>codes.julian.nullfeed.tv</key>
+                  <key>codes.julian.nullfeed</key>
                   <string>NullFeed tvOS App Store</string>
-                  <key>codes.julian.nullfeed.tv.TopShelf</key>
+                  <key>codes.julian.nullfeed.TopShelf</key>
                   <string>NullFeed tvOS TopShelf App Store</string>
               </dict>
           </dict>
@@ -117,10 +117,15 @@ jobs:
             -exportPath build/export \
             -exportOptionsPlist ExportOptions.plist
 
-      - name: Install fastlane
-        run: sudo gem install fastlane
+      - name: Create API key file
+        run: |
+          mkdir -p ~/.appstoreconnect/private_keys
+          echo "$APP_STORE_CONNECT_API_KEY_B64" | base64 --decode > ~/.appstoreconnect/private_keys/AuthKey_${APP_STORE_CONNECT_KEY_ID}.p8
 
       - name: Upload to TestFlight
         run: |
-          cd fastlane
-          fastlane beta
+          xcrun altool --upload-app \
+            --file build/export/NullFeed.ipa \
+            --type tvos \
+            --apiKey "$APP_STORE_CONNECT_KEY_ID" \
+            --apiIssuer "$APP_STORE_CONNECT_ISSUER_ID"

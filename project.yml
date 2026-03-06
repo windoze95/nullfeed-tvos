@@ -18,7 +18,7 @@ targets:
       - NullFeed
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: codes.julian.nullfeed.tv
+        PRODUCT_BUNDLE_IDENTIFIER: codes.julian.nullfeed
         INFOPLIST_GENERATION_MODE: GeneratedByXcode
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: 1
@@ -50,7 +50,7 @@ targets:
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ContentProvider
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: codes.julian.nullfeed.tv.TopShelf
+        PRODUCT_BUNDLE_IDENTIFIER: codes.julian.nullfeed.TopShelf
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: 1
       configs:
@@ -71,7 +71,7 @@ targets:
       - target: NullFeed
     settings:
       base:
-        PRODUCT_BUNDLE_IDENTIFIER: codes.julian.nullfeed.tv.tests
+        PRODUCT_BUNDLE_IDENTIFIER: codes.julian.nullfeed.tests
         GENERATE_INFOPLIST_FILE: true
 schemes:
   NullFeed:
