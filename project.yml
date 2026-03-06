@@ -1,0 +1,82 @@
+name: NullFeed
+options:
+  bundleIdPrefix: codes.julian.nullfeed
+  deploymentTarget:
+    tvOS: "17.0"
+  xcodeVersion: "16.0"
+  defaultConfig: Release
+settings:
+  base:
+    DEVELOPMENT_TEAM: 2M54LKDR89
+    SWIFT_VERSION: "6.0"
+    SWIFT_STRICT_CONCURRENCY: complete
+targets:
+  NullFeed:
+    type: application
+    platform: tvOS
+    sources:
+      - NullFeed
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: codes.julian.nullfeed.tv
+        INFOPLIST_GENERATION_MODE: GeneratedByXcode
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: 1
+        GENERATE_INFOPLIST_FILE: true
+        INFOPLIST_KEY_UILaunchScreen_Generation: true
+        INFOPLIST_KEY_UIUserInterfaceStyle: Dark
+    dependencies:
+      - target: NullFeedTopShelf
+    entitlements:
+      path: NullFeed/NullFeed.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.codes.julian.nullfeed
+  NullFeedTopShelf:
+    type: app-extension
+    product: com.apple.product-type.tv-app-extension
+    platform: tvOS
+    sources:
+      - NullFeedTopShelf
+    info:
+      path: NullFeedTopShelf/Info.plist
+      properties:
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.tv-top-shelf
+          NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ContentProvider
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: codes.julian.nullfeed.tv.TopShelf
+        MARKETING_VERSION: "1.0.0"
+        CURRENT_PROJECT_VERSION: 1
+    entitlements:
+      path: NullFeedTopShelf/NullFeedTopShelf.entitlements
+      properties:
+        com.apple.security.application-groups:
+          - group.codes.julian.nullfeed
+  NullFeedTests:
+    type: bundle.unit-test
+    platform: tvOS
+    sources:
+      - NullFeedTests
+    dependencies:
+      - target: NullFeed
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: codes.julian.nullfeed.tv.tests
+        GENERATE_INFOPLIST_FILE: true
+schemes:
+  NullFeed:
+    build:
+      targets:
+        NullFeed: all
+        NullFeedTopShelf: all
+        NullFeedTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - NullFeedTests
+    archive:
+      config: Release
