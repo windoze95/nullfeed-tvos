@@ -16,6 +16,15 @@ extension JSONDecoder {
             if let date = ISO8601DateFormatter.standard.date(from: string) {
                 return date
             }
+            // Fallback: no timezone (assume UTC), e.g. "2026-03-03T21:43:09.794907"
+            // Append Z so ISO8601DateFormatter can parse it
+            let withZ = string.hasSuffix("Z") ? string : string + "Z"
+            if let date = ISO8601DateFormatter.withFractionalSeconds.date(from: withZ) {
+                return date
+            }
+            if let date = ISO8601DateFormatter.standard.date(from: withZ) {
+                return date
+            }
             throw DecodingError.dataCorruptedError(in: container, debugDescription: "Cannot decode date: \(string)")
         }
         return decoder
