@@ -6,7 +6,7 @@ final class StorageService {
     private let defaults: UserDefaults
 
     init() {
-        self.defaults = UserDefaults(suiteName: AppConstants.appGroup) ?? .standard
+        self.defaults = .standard
     }
 
     var serverUrl: String? {

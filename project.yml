@@ -28,6 +28,7 @@ targets:
       configs:
         Release:
           CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: "NullFeed tvOS App Store"
         Debug:
           CODE_SIGN_STYLE: Automatic
@@ -35,9 +36,6 @@ targets:
       - target: NullFeedTopShelf
     entitlements:
       path: NullFeed/NullFeed.entitlements
-      properties:
-        com.apple.security.application-groups:
-          - group.codes.julian.nullfeed
   NullFeedTopShelf:
     type: app-extension
     product: com.apple.product-type.tv-app-extension
@@ -58,14 +56,12 @@ targets:
       configs:
         Release:
           CODE_SIGN_STYLE: Manual
+          CODE_SIGN_IDENTITY: "Apple Distribution"
           PROVISIONING_PROFILE_SPECIFIER: "NullFeed tvOS TopShelf App Store"
         Debug:
           CODE_SIGN_STYLE: Automatic
     entitlements:
       path: NullFeedTopShelf/NullFeedTopShelf.entitlements
-      properties:
-        com.apple.security.application-groups:
-          - group.codes.julian.nullfeed
   NullFeedTests:
     type: bundle.unit-test
     platform: tvOS
