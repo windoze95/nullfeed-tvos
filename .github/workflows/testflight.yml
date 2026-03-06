@@ -20,7 +20,7 @@ jobs:
 
       - name: Calculate build number
         run: |
-          VERSION=$(grep -m1 'MARKETING_VERSION' NullFeed.xcodeproj/project.pbxproj | sed 's/.*= //;s/;.*//' | tr -d '[:space:]')
+          VERSION=$(grep 'MARKETING_VERSION' project.yml | head -1 | sed 's/.*: *"//;s/".*//')
           VERSION_TAG="v${VERSION}"
           if git rev-parse "$VERSION_TAG" >/dev/null 2>&1; then
             BUILD_NUMBER=$(git rev-list --count "${VERSION_TAG}..HEAD")
@@ -39,6 +39,12 @@ jobs:
         uses: maxim-lobanov/setup-xcode@v1
         with:
           xcode-version: '16'
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
 
       - name: Import signing certificate
         uses: apple-actions/import-codesign-certs@v2

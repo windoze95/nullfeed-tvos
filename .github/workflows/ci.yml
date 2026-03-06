@@ -18,6 +18,12 @@ jobs:
         with:
           xcode-version: '16'
 
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
       - name: Build
         run: |
           xcodebuild \
