@@ -46,6 +46,9 @@ targets:
     info:
       path: NullFeedTopShelf/Info.plist
       properties:
+        CFBundleDisplayName: NullFeed TopShelf
+        UIRequiredDeviceCapabilities:
+          - arm64
         NSExtension:
           NSExtensionPointIdentifier: com.apple.tv-top-shelf
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ContentProvider
