@@ -92,9 +92,9 @@ jobs:
               <key>provisioningProfiles</key>
               <dict>
                   <key>codes.julian.nullfeed.tv</key>
-                  <string>codes.julian.nullfeed.tv</string>
+                  <string>NullFeed tvOS App Store</string>
                   <key>codes.julian.nullfeed.tv.TopShelf</key>
-                  <string>codes.julian.nullfeed.tv.TopShelf</string>
+                  <string>NullFeed tvOS TopShelf App Store</string>
               </dict>
           </dict>
           </plist>

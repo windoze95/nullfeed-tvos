@@ -25,6 +25,12 @@ targets:
         GENERATE_INFOPLIST_FILE: true
         INFOPLIST_KEY_UILaunchScreen_Generation: true
         INFOPLIST_KEY_UIUserInterfaceStyle: Dark
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          PROVISIONING_PROFILE_SPECIFIER: "NullFeed tvOS App Store"
+        Debug:
+          CODE_SIGN_STYLE: Automatic
     dependencies:
       - target: NullFeedTopShelf
     entitlements:
@@ -49,6 +55,12 @@ targets:
         PRODUCT_BUNDLE_IDENTIFIER: codes.julian.nullfeed.tv.TopShelf
         MARKETING_VERSION: "0.1.0"
         CURRENT_PROJECT_VERSION: 1
+      configs:
+        Release:
+          CODE_SIGN_STYLE: Manual
+          PROVISIONING_PROFILE_SPECIFIER: "NullFeed tvOS TopShelf App Store"
+        Debug:
+          CODE_SIGN_STYLE: Automatic
     entitlements:
       path: NullFeedTopShelf/NullFeedTopShelf.entitlements
       properties:

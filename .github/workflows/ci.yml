@@ -24,6 +24,9 @@ jobs:
       - name: Generate Xcode project
         run: xcodegen generate
 
+      - name: Download tvOS Simulator
+        run: xcodebuild -downloadPlatform tvOS
+
       - name: Build
         run: |
           xcodebuild \
