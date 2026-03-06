@@ -1,0 +1,120 @@
+name: TestFlight
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: macos-15
+    env:
+      APP_STORE_CONNECT_KEY_ID: ${{ secrets.APP_STORE_CONNECT_KEY_ID }}
+      APP_STORE_CONNECT_ISSUER_ID: ${{ secrets.APP_STORE_CONNECT_ISSUER_ID }}
+      APP_STORE_CONNECT_API_KEY_B64: ${{ secrets.APP_STORE_CONNECT_API_KEY_B64 }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Calculate build number
+        run: |
+          VERSION=$(grep -m1 'MARKETING_VERSION' NullFeed.xcodeproj/project.pbxproj | sed 's/.*= //;s/;.*//' | tr -d '[:space:]')
+          VERSION_TAG="v${VERSION}"
+          if git rev-parse "$VERSION_TAG" >/dev/null 2>&1; then
+            BUILD_NUMBER=$(git rev-list --count "${VERSION_TAG}..HEAD")
+          else
+            BUILD_NUMBER=$(git rev-list --count HEAD)
+          fi
+          # Ensure build number is at least 1
+          if [ "$BUILD_NUMBER" -eq 0 ]; then
+            BUILD_NUMBER=1
+          fi
+          echo "VERSION=$VERSION" >> $GITHUB_ENV
+          echo "BUILD_NUMBER=$BUILD_NUMBER" >> $GITHUB_ENV
+          echo "Version: $VERSION, Build: $BUILD_NUMBER"
+
+      - name: Select Xcode 16
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '16'
+
+      - name: Import signing certificate
+        uses: apple-actions/import-codesign-certs@v2
+        with:
+          p12-file-base64: ${{ secrets.IOS_DIST_CERT_BASE64 }}
+          p12-password: ${{ secrets.IOS_DIST_CERT_PASSWORD }}
+
+      - name: Install provisioning profiles
+        shell: bash
+        env:
+          TVOS_PROVISIONING_PROFILE_BASE64: ${{ secrets.TVOS_PROVISIONING_PROFILE_BASE64 }}
+          TVOS_TOPSHELF_PROVISIONING_PROFILE_BASE64: ${{ secrets.TVOS_TOPSHELF_PROVISIONING_PROFILE_BASE64 }}
+        run: |
+          set -euo pipefail
+          PROFILES_DIR="$HOME/Library/MobileDevice/Provisioning Profiles"
+          mkdir -p "$PROFILES_DIR"
+
+          install_profile() {
+            local b64="$1"
+            local tmpfile="/tmp/profile_$$.mobileprovision"
+            echo "$b64" | base64 --decode > "$tmpfile"
+            local uuid
+            uuid=$(/usr/bin/security cms -D -i "$tmpfile" | /usr/bin/plutil -extract UUID raw -)
+            cp "$tmpfile" "$PROFILES_DIR/$uuid.mobileprovision"
+            rm "$tmpfile"
+            echo "Installed profile: $uuid"
+          }
+
+          install_profile "$TVOS_PROVISIONING_PROFILE_BASE64"
+          install_profile "$TVOS_TOPSHELF_PROVISIONING_PROFILE_BASE64"
+
+      - name: Create ExportOptions.plist
+        run: |
+          cat > ExportOptions.plist << 'EOF'
+          <?xml version="1.0" encoding="UTF-8"?>
+          <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+          <plist version="1.0">
+          <dict>
+              <key>method</key>
+              <string>app-store</string>
+              <key>teamID</key>
+              <string>2M54LKDR89</string>
+              <key>signingStyle</key>
+              <string>manual</string>
+              <key>provisioningProfiles</key>
+              <dict>
+                  <key>codes.julian.nullfeed.tv</key>
+                  <string>codes.julian.nullfeed.tv</string>
+                  <key>codes.julian.nullfeed.tv.TopShelf</key>
+                  <string>codes.julian.nullfeed.tv.TopShelf</string>
+              </dict>
+          </dict>
+          </plist>
+          EOF
+
+      - name: Archive
+        run: |
+          xcodebuild archive \
+            -scheme NullFeed \
+            -project NullFeed.xcodeproj \
+            -archivePath build/NullFeed.xcarchive \
+            -destination generic/platform=tvOS \
+            MARKETING_VERSION=$VERSION \
+            CURRENT_PROJECT_VERSION=$BUILD_NUMBER
+
+      - name: Export
+        run: |
+          xcodebuild -exportArchive \
+            -archivePath build/NullFeed.xcarchive \
+            -exportPath build/export \
+            -exportOptionsPlist ExportOptions.plist
+
+      - name: Install fastlane
+        run: sudo gem install fastlane
+
+      - name: Upload to TestFlight
+        run: |
+          cd fastlane
+          fastlane beta
