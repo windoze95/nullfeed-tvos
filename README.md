@@ -121,28 +121,6 @@ Standard Swift `Codable` structs with snake_case key decoding and ISO 8601 date 
 
 Lightweight persistence for server URL, session token, selected user, and quality preferences. An App Group (`group.codes.julian.nullfeed`) shares credentials with the Top Shelf extension.
 
-### Directory Structure
-
-```
-NullFeed/
-├── App/             # App entry point and AppState
-├── Config/          # Theme and constants
-├── Models/          # Codable data models
-├── Services/        # APIClient, WebSocket, Storage, ImageLoader
-├── Utilities/       # JSONDecoder config, formatting helpers
-├── ViewModels/      # @Observable view models
-└── Views/           # SwiftUI views organized by feature
-    ├── Channel/
-    ├── Components/
-    ├── Discover/
-    ├── Home/
-    ├── Library/
-    ├── Navigation/
-    ├── Player/
-    ├── ProfilePicker/
-    └── Settings/
-```
-
 ---
 
 ## Configuration
