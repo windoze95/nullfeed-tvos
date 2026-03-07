@@ -30,10 +30,14 @@ jobs:
           else
             # Retry download — the simulator service can be slow to start on CI
             for i in 1 2 3; do
-              xcodebuild -downloadPlatform tvOS && break
+              if xcodebuild -downloadPlatform tvOS; then
+                break
+              fi
               echo "Attempt $i failed, retrying in 10s..."
               sleep 10
             done
+            # Verify the runtime is now available
+            xcrun simctl list runtimes | grep -q tvOS || { echo "tvOS runtime not available after retries"; exit 1; }
           fi
 
       - name: Build
