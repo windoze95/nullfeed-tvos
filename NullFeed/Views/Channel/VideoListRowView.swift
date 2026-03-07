@@ -73,9 +73,9 @@ struct VideoListRowView: View {
     private var statusBadge: some View {
         switch video.status {
         case .complete:
-            Label("Ready", systemImage: "checkmark.circle")
+            Label("Stream", systemImage: "play.circle")
                 .font(NullFeedTheme.caption)
-                .foregroundStyle(NullFeedTheme.success)
+                .foregroundStyle(NullFeedTheme.accent)
         case .downloading:
             Label("Downloading", systemImage: "arrow.down.circle")
                 .font(NullFeedTheme.caption)
@@ -89,7 +89,7 @@ struct VideoListRowView: View {
                 .font(NullFeedTheme.caption)
                 .foregroundStyle(NullFeedTheme.error)
         case .cataloged:
-            Label("Cataloged", systemImage: "square.and.arrow.down")
+            Label("Not Downloaded", systemImage: "icloud.and.arrow.down")
                 .font(NullFeedTheme.caption)
                 .foregroundStyle(NullFeedTheme.textMuted)
         }
