@@ -23,7 +23,18 @@ jobs:
         run: xcodegen generate
 
       - name: Download tvOS Simulator
-        run: xcodebuild -downloadPlatform tvOS
+        run: |
+          # List available tvOS runtimes — if already installed, skip download
+          if xcrun simctl list runtimes | grep -q tvOS; then
+            echo "tvOS runtime already installed"
+          else
+            # Retry download — the simulator service can be slow to start on CI
+            for i in 1 2 3; do
+              xcodebuild -downloadPlatform tvOS && break
+              echo "Attempt $i failed, retrying in 10s..."
+              sleep 10
+            done
+          fi
 
       - name: Build
         run: |
