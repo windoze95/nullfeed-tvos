@@ -2,6 +2,17 @@
 
 Native SwiftUI Apple TV client for the NullFeed self-hosted YouTube media center.
 
+## Features
+
+- **Instant Playback with Progressive Quality** -- Start watching immediately, even before a video finishes downloading to the server. The app begins playback with a low-quality stream, then seamlessly upgrades to the full-quality version once it's ready -- no buffering, no interruption.
+- **Channel-Centric Navigation** -- Browse your subscriptions like shows in a streaming app, with channel art, banners, and episode lists.
+- **Resume-Aware Home Screen** -- Continue Watching, New Episodes, and Recently Added rows keep you up to date.
+- **Native Video Playback** -- AVPlayer-backed playback with full seeking support.
+- **Multi-User Profiles** -- Profile picker with independent subscriptions, watch history, and recommendations per user.
+- **AI-Powered Discover Tab** -- Claude-powered channel and video suggestions based on your subscription graph.
+- **Real-Time Download Tracking** -- WebSocket-driven progress indicators for active downloads.
+- **Dark Theme** -- Media-center-class dark UI built for the big screen.
+
 ## Requirements
 
 - Xcode 16+
