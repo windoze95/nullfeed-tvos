@@ -6,6 +6,7 @@ final class ChannelDetailViewModel {
     var channel: Channel?
     var videos: [Video] = []
     var isLoading = false
+    var isRefreshing = false
     var error: String?
 
     private let api: APIClient
@@ -26,6 +27,16 @@ final class ChannelDetailViewModel {
             self.error = error.localizedDescription
         }
         isLoading = false
+    }
+
+    /// Trigger a synchronous server-side poll of just this channel, then reload
+    /// its detail and video list.
+    func refresh(channelId: String) async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        try? await api.pollChannel(channelId)
+        await load(channelId: channelId)
+        isRefreshing = false
     }
 
     func downloadVideo(_ id: String) async {

@@ -5,6 +5,7 @@ import Foundation
 final class LibraryViewModel {
     var channels: [Channel] = []
     var isLoading = false
+    var isRefreshing = false
     var error: String?
 
     private let api: APIClient
@@ -22,6 +23,15 @@ final class LibraryViewModel {
             self.error = error.localizedDescription
         }
         isLoading = false
+    }
+
+    /// Trigger a server-side poll of every channel, then reload the catalog.
+    func refresh() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        try? await api.pollAllChannels()
+        await loadChannels()
+        isRefreshing = false
     }
 
     func subscribeToChannel(url: String, trackingMode: String = "FUTURE_ONLY") async {

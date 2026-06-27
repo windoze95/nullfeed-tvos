@@ -5,6 +5,9 @@ struct RecommendationCardView: View {
     let onSubscribe: () -> Void
     let onDismiss: () -> Void
 
+    private enum Action: Hashable { case subscribe, dismiss }
+    @FocusState private var focusedAction: Action?
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             // Banner / Avatar
@@ -47,17 +50,22 @@ struct RecommendationCardView: View {
                         .font(NullFeedTheme.caption)
                 }
                 .tint(NullFeedTheme.primary)
+                .focused($focusedAction, equals: .subscribe)
 
                 Button(action: onDismiss) {
                     Label("Dismiss", systemImage: "xmark.circle")
                         .font(NullFeedTheme.caption)
                 }
                 .tint(NullFeedTheme.textMuted)
+                .focused($focusedAction, equals: .dismiss)
             }
             .padding(.horizontal, 12)
             .padding(.bottom, 12)
         }
         .background(NullFeedTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius))
+        // Lift the whole card when either action is focused, so it's clear which
+        // recommendation the remote is on from across the room (issue #4).
+        .cardFocusStyle(isFocused: focusedAction != nil)
     }
 }

@@ -4,8 +4,6 @@ struct ProfileCardView: View {
     let user: User
     let onSelect: () -> Void
 
-    @FocusState private var isFocused: Bool
-
     var body: some View {
         Button(action: onSelect) {
             VStack(spacing: 16) {
@@ -25,15 +23,8 @@ struct ProfileCardView: View {
             .padding(24)
             .background(NullFeedTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius))
-            .overlay(
-                RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius)
-                    .stroke(isFocused ? NullFeedTheme.primary : .clear, lineWidth: NullFeedTheme.focusBorderWidth)
-            )
-            .scaleEffect(isFocused ? NullFeedTheme.focusScale : 1.0)
-            .animation(.easeInOut(duration: 0.15), value: isFocused)
         }
-        .buttonStyle(.plain)
-        .focused($isFocused)
+        .buttonStyle(CardButtonStyle())
     }
 
     private var initialsView: some View {

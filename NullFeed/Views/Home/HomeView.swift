@@ -5,26 +5,36 @@ struct HomeView: View {
     @Environment(WebSocketClient.self) private var webSocket
     @State private var viewModel: HomeViewModel?
     @State private var path = NavigationPath()
+    @Namespace private var feedFocus
 
     var body: some View {
         NavigationStack(path: $path) {
             Group {
                 if let viewModel {
-                    if viewModel.isLoading && viewModel.isEmpty {
-                        LoadingView()
-                    } else if viewModel.isEmpty {
-                        EmptyStateView(
-                            iconName: "play.rectangle.on.rectangle",
+                    StateView(state: .resolve(
+                        isLoading: viewModel.isLoading,
+                        isEmpty: viewModel.isEmpty,
+                        error: viewModel.error,
+                        empty: (
+                            icon: "play.rectangle.on.rectangle",
                             title: "Nothing Here Yet",
                             subtitle: "Subscribe to channels and download videos to start watching."
-                        )
-                    } else {
+                        ),
+                        retry: { Task { await viewModel.loadFeed() } }
+                    )) {
                         feedContent(viewModel: viewModel)
                     }
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
             .background(NullFeedTheme.background)
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button("Refresh") {
+                        Task { await viewModel?.refresh() }
+                    }
+                }
+            }
             .navigationDestination(for: Video.self) { video in
                 PlayerView(videoId: video.id)
             }
@@ -51,6 +61,11 @@ struct HomeView: View {
 
     @ViewBuilder
     private func feedContent(viewModel: HomeViewModel) -> some View {
+        // First card of the first non-empty row gets deterministic initial focus.
+        let firstFocusID = viewModel.continueWatching.first?.id
+            ?? viewModel.newEpisodes.first?.id
+            ?? viewModel.recentlyAdded.first?.id
+
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 40) {
                 if !viewModel.continueWatching.isEmpty {
@@ -59,6 +74,7 @@ struct HomeView: View {
                             VideoCardView(feedItem: item) {
                                 path.append(item.video)
                             }
+                            .prefersDefaultFocus(item.id == firstFocusID, in: feedFocus)
                         }
                     }
                 }
@@ -69,6 +85,7 @@ struct HomeView: View {
                             VideoCardView(feedItem: item) {
                                 path.append(item.video)
                             }
+                            .prefersDefaultFocus(item.id == firstFocusID, in: feedFocus)
                         }
                     }
                 }
@@ -79,11 +96,13 @@ struct HomeView: View {
                             VideoCardView(feedItem: item) {
                                 path.append(item.video)
                             }
+                            .prefersDefaultFocus(item.id == firstFocusID, in: feedFocus)
                         }
                     }
                 }
             }
             .padding(.vertical, NullFeedTheme.contentPadding)
+            .focusScope(feedFocus)
         }
     }
 }
