@@ -46,11 +46,12 @@ struct HomeView: View {
             await viewModel?.loadFeed()
         }
         .task {
-            // Refresh the feeds when a download finishes or a preview becomes
-            // ready, so newly playable content appears without a manual reload.
+            // Refresh the feeds when content changes server-side -- a download
+            // finishes, a preview becomes ready, a new episode arrives, or watch
+            // progress changes -- so the rows stay current without a manual reload.
             for await event in webSocket.subscribe() {
                 switch event.type {
-                case .downloadComplete, .previewReady:
+                case .downloadComplete, .previewReady, .newEpisode, .progressUpdated:
                     await viewModel?.loadFeed()
                 default:
                     break

@@ -47,7 +47,11 @@ final class APIClient {
             throw APIError.requestFailed
         }
         guard (200...299).contains(http.statusCode) else {
-            throw APIError.httpStatus(http.statusCode)
+            // Non-2xx bodies are the standard {detail, code} error envelope;
+            // decode it so the PIN flow can branch on status and views can
+            // surface the real message.
+            let envelope = try? JSONDecoder.nullFeed.decode(ErrorEnvelope.self, from: data)
+            throw APIError.httpStatus(http.statusCode, detail: envelope?.detail, code: envelope?.code)
         }
         return data
     }
@@ -186,6 +190,12 @@ final class APIClient {
 
     // MARK: - Feed
 
+    /// Unified home feed (continue-watching, new-episodes, recently-added) in a
+    /// single round trip; each row shares the per-feed item shape.
+    func getHomeFeed() async throws -> HomeFeed {
+        try await get(AppConstants.feedHome)
+    }
+
     func getContinueWatching() async throws -> [FeedItem] {
         try await get(AppConstants.feedContinueWatching)
     }
@@ -236,16 +246,26 @@ private struct PaginatedVideos: Decodable {
     let items: [Video]
 }
 
+/// The backend's standard error body: a human-readable `detail` and a stable
+/// machine `code`. Both optional so a partial or non-JSON body still decodes.
+private struct ErrorEnvelope: Decodable {
+    let detail: String?
+    let code: String?
+}
+
 enum APIError: Error, LocalizedError {
     case invalidURL
     case requestFailed
-    case httpStatus(Int)
+    /// Non-2xx response. Carries the HTTP status plus the decoded error
+    /// envelope ({detail, code}) when present, so callers can branch on the
+    /// status (e.g. the PIN flow) while views surface `detail`.
+    case httpStatus(Int, detail: String?, code: String?)
 
     var errorDescription: String? {
         switch self {
         case .invalidURL: "Invalid URL"
         case .requestFailed: "Request failed"
-        case .httpStatus(let code): "Request failed (HTTP \(code))"
+        case .httpStatus(let status, let detail, _): detail ?? "Request failed (HTTP \(status))"
         }
     }
 }

@@ -68,7 +68,7 @@ final class AuthViewModel {
             let response = try await api.selectProfile(userId: userId, pin: pin)
             appState.login(user: response.user, token: response.token)
             return .success
-        } catch APIError.httpStatus(let code) {
+        } catch APIError.httpStatus(let code, _, _) {
             switch code {
             case 403:
                 // Wrong or missing PIN -- let the caller re-prompt.

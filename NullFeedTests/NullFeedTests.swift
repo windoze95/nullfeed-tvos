@@ -183,6 +183,51 @@ final class NullFeedTests: XCTestCase {
         XCTAssertNil(recs[1].youtubeChannelId)
     }
 
+    // MARK: - Home feed
+
+    func testHomeFeedDecoding() throws {
+        // Unified /feed/home payload: snake_case rows map to the camelCase
+        // properties and each item is the per-feed {channel, video} shape.
+        let json = """
+        {
+            "continue_watching": [
+                {
+                    "channel": {
+                        "id": "ch-1",
+                        "youtube_channel_id": "UC123",
+                        "name": "Test Channel",
+                        "slug": "test-channel"
+                    },
+                    "video": {
+                        "id": "v-1",
+                        "youtube_video_id": "yt-1",
+                        "channel_id": "ch-1",
+                        "title": "Ep 1"
+                    }
+                }
+            ],
+            "new_episodes": [],
+            "recently_added": []
+        }
+        """.data(using: .utf8)!
+
+        let feed = try JSONDecoder.nullFeed.decode(HomeFeed.self, from: json)
+        XCTAssertEqual(feed.continueWatching.count, 1)
+        XCTAssertEqual(feed.continueWatching.first?.id, "v-1")
+        XCTAssertEqual(feed.continueWatching.first?.channel.name, "Test Channel")
+        XCTAssertTrue(feed.newEpisodes.isEmpty)
+        XCTAssertTrue(feed.recentlyAdded.isEmpty)
+    }
+
+    func testHomeFeedMissingRowsDefaultToEmpty() throws {
+        // Rows the server omits must decode to empty arrays, not throw.
+        let json = "{}".data(using: .utf8)!
+        let feed = try JSONDecoder.nullFeed.decode(HomeFeed.self, from: json)
+        XCTAssertTrue(feed.continueWatching.isEmpty)
+        XCTAssertTrue(feed.newEpisodes.isEmpty)
+        XCTAssertTrue(feed.recentlyAdded.isEmpty)
+    }
+
     // MARK: - WebSocket events
 
     func testWebSocketDownloadProgressParsing() {
@@ -216,6 +261,18 @@ final class NullFeedTests: XCTestCase {
         let event = WebSocketEvent.from(json: json)
         XCTAssertEqual(event.type, .previewReady)
         XCTAssertEqual(event.videoId, "v-11")
+    }
+
+    func testWebSocketProgressUpdatedParsing() {
+        // progress_updated carries the video plus its new position/watched flag;
+        // HomeView only needs the type + video to trigger a feed reload.
+        let json: [String: Any] = [
+            "type": "progress_updated",
+            "data": ["video_id": "v-12", "position_seconds": 90, "is_watched": false],
+        ]
+        let event = WebSocketEvent.from(json: json)
+        XCTAssertEqual(event.type, .progressUpdated)
+        XCTAssertEqual(event.videoId, "v-12")
     }
 
     func testWebSocketUnknownTypeParsing() {
