@@ -32,11 +32,13 @@ struct RecommendationCardView: View {
             }
 
             // Reasoning
-            Text(recommendation.reasoning)
-                .font(NullFeedTheme.bodySmall)
-                .foregroundStyle(NullFeedTheme.textSecondary)
-                .lineLimit(3)
-                .padding(.horizontal, 12)
+            if let reason = recommendation.reason, !reason.isEmpty {
+                Text(reason)
+                    .font(NullFeedTheme.bodySmall)
+                    .foregroundStyle(NullFeedTheme.textSecondary)
+                    .lineLimit(3)
+                    .padding(.horizontal, 12)
+            }
 
             // Actions
             HStack(spacing: 16) {

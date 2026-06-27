@@ -9,10 +9,12 @@ final class AppState {
 
     private let storage: StorageService
     private let api: APIClient
+    private let webSocket: WebSocketClient
 
-    init(storage: StorageService, api: APIClient) {
+    init(storage: StorageService, api: APIClient, webSocket: WebSocketClient) {
         self.storage = storage
         self.api = api
+        self.webSocket = webSocket
     }
 
     func checkSession() async {
@@ -32,7 +34,12 @@ final class AppState {
 
         do {
             let profiles = try await api.getProfiles()
-            currentUser = profiles.first { $0.id == userId }
+            if let user = profiles.first(where: { $0.id == userId }) {
+                currentUser = user
+                connectWebSocket(userId: userId, token: token)
+            } else {
+                storage.clearSession()
+            }
         } catch {
             storage.clearSession()
         }
@@ -42,10 +49,17 @@ final class AppState {
         storage.sessionToken = token
         storage.selectedUserId = user.id
         currentUser = user
+        connectWebSocket(userId: user.id, token: token)
     }
 
     func logout() {
+        webSocket.disconnect()
         storage.clearSession()
         currentUser = nil
+    }
+
+    private func connectWebSocket(userId: String, token: String) {
+        guard let serverUrl = storage.serverUrl, !serverUrl.isEmpty else { return }
+        webSocket.connect(serverUrl: serverUrl, userId: userId, token: token)
     }
 }

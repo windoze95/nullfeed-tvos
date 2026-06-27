@@ -2,6 +2,7 @@ import SwiftUI
 
 struct ProfilePickerView: View {
     @Bindable var viewModel: AuthViewModel
+    @State private var pinUser: User?
 
     var body: some View {
         VStack(spacing: 48) {
@@ -23,8 +24,10 @@ struct ProfilePickerView: View {
                     HStack(spacing: 32) {
                         ForEach(viewModel.profiles) { user in
                             ProfileCardView(user: user) {
-                                Task {
-                                    await viewModel.selectProfile(userId: user.id)
+                                if user.hasPin {
+                                    pinUser = user
+                                } else {
+                                    Task { await viewModel.selectProfile(userId: user.id) }
                                 }
                             }
                         }
@@ -44,5 +47,14 @@ struct ProfilePickerView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(NullFeedTheme.background)
+        .sheet(item: $pinUser) { user in
+            PinEntryView(
+                user: user,
+                onSubmit: { pin in
+                    await viewModel.selectProfile(userId: user.id, pin: pin)
+                },
+                onCancel: { pinUser = nil }
+            )
+        }
     }
 }

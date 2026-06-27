@@ -4,6 +4,7 @@ struct VideoCardView: View {
     let feedItem: FeedItem
     var onSelect: (() -> Void)?
 
+    @Environment(APIClient.self) private var api
     @FocusState private var isFocused: Bool
 
     private var video: Video { feedItem.video }
@@ -74,10 +75,7 @@ struct VideoCardView: View {
         .padding(.bottom, 12)
     }
 
-    private var thumbnailUrl: String {
-        if let avatarUrl = channel.avatarUrl, !avatarUrl.isEmpty {
-            return avatarUrl
-        }
-        return ""
+    private var thumbnailUrl: String? {
+        api.mediaURL(video.thumbnailUrl)
     }
 }

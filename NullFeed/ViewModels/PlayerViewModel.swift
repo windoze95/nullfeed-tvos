@@ -82,7 +82,7 @@ final class PlayerViewModel {
                 }
             }
 
-            for await event in webSocket.events {
+            for await event in webSocket.subscribe() {
                 guard !Task.isCancelled else { break }
                 if event.videoId == videoId {
                     if event.type == .previewReady {
@@ -105,7 +105,7 @@ final class PlayerViewModel {
     private func listenForHqReady() {
         wsTask?.cancel()
         wsTask = Task {
-            for await event in webSocket.events {
+            for await event in webSocket.subscribe() {
                 guard !Task.isCancelled else { break }
                 if event.type == .downloadComplete && event.videoId == videoId {
                     await switchToHq()

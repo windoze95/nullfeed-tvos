@@ -21,6 +21,7 @@ struct Video: Codable, Identifiable, Hashable, Sendable {
     var watchPositionSeconds: Int
     var isWatched: Bool
     let previewStatus: String?
+    let thumbnailUrl: String?
     var channelName: String
 
     init(from decoder: Decoder) throws {
@@ -37,13 +38,14 @@ struct Video: Codable, Identifiable, Hashable, Sendable {
         watchPositionSeconds = try c.decodeIfPresent(Int.self, forKey: .watchPositionSeconds) ?? 0
         isWatched = try c.decodeIfPresent(Bool.self, forKey: .isWatched) ?? false
         previewStatus = try c.decodeIfPresent(String.self, forKey: .previewStatus)
+        thumbnailUrl = try c.decodeIfPresent(String.self, forKey: .thumbnailUrl)
         channelName = try c.decodeIfPresent(String.self, forKey: .channelName) ?? ""
     }
 
     private enum CodingKeys: String, CodingKey {
         case id, youtubeVideoId, channelId, title, durationSeconds
         case uploadedAt, filePath, fileSizeBytes, status
-        case watchPositionSeconds, isWatched, previewStatus, channelName
+        case watchPositionSeconds, isWatched, previewStatus, thumbnailUrl, channelName
     }
 }
 
