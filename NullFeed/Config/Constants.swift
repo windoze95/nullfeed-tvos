@@ -18,6 +18,7 @@ enum AppConstants {
     static let authCreate = "\(apiBase)/auth/create"
     static let channels = "\(apiBase)/channels"
     static let channelSubscribe = "\(apiBase)/channels/subscribe"
+    static let channelsPoll = "\(apiBase)/channels/poll"
     static let activeDownloads = "\(apiBase)/videos/downloads"
     static let feedContinueWatching = "\(apiBase)/feed/continue-watching"
     static let feedNewEpisodes = "\(apiBase)/feed/new-episodes"
@@ -27,6 +28,7 @@ enum AppConstants {
     static let health = "\(apiBase)/health"
 
     static func channelDetail(_ id: String) -> String { "\(apiBase)/channels/\(id)" }
+    static func channelPoll(_ id: String) -> String { "\(apiBase)/channels/\(id)/poll" }
     static func channelVideos(_ id: String) -> String { "\(apiBase)/channels/\(id)/videos" }
     static func channelRefreshImages(_ id: String) -> String { "\(apiBase)/channels/\(id)/refresh-images" }
     static func channelUnsubscribe(_ id: String) -> String { "\(apiBase)/channels/\(id)/unsubscribe" }

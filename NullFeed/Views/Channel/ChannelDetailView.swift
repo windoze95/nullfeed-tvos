@@ -4,6 +4,7 @@ struct ChannelDetailView: View {
     let channelId: String
     @Environment(APIClient.self) private var api
     @State private var viewModel: ChannelDetailViewModel?
+    @Namespace private var listFocus
 
     var body: some View {
         ZStack {
@@ -13,61 +14,18 @@ struct ChannelDetailView: View {
                 if vm.isLoading && vm.channel == nil {
                     LoadingView()
                 } else if let channel = vm.channel {
-                    ScrollView {
-                        VStack(alignment: .leading, spacing: 30) {
-                            // Banner header
-                            ZStack(alignment: .bottomLeading) {
-                                AsyncImageView(url: channel.bannerUrl, cornerRadius: 0)
-                                    .frame(height: 300)
-                                    .clipped()
-
-                                LinearGradient(
-                                    colors: [.clear, NullFeedTheme.background],
-                                    startPoint: .top,
-                                    endPoint: .bottom
-                                )
-                                .frame(height: 150)
-
-                                HStack(spacing: 20) {
-                                    AsyncImageView(url: channel.avatarUrl, cornerRadius: 30)
-                                        .frame(width: 60, height: 60)
-
-                                    Text(channel.name)
-                                        .font(NullFeedTheme.headlineMedium)
-                                        .foregroundStyle(NullFeedTheme.textPrimary)
-                                }
-                                .padding(.horizontal, NullFeedTheme.contentPadding)
-                                .padding(.bottom, 20)
-                            }
-
-                            // Videos
-                            if vm.videos.isEmpty {
-                                EmptyStateView(
-                                    iconName: "play.rectangle",
-                                    title: "No Videos",
-                                    subtitle: "Videos will appear here once downloaded"
-                                )
-                                .frame(maxWidth: .infinity)
-                                .padding(.top, 60)
-                            } else {
-                                LazyVStack(spacing: 8) {
-                                    ForEach(vm.videos) { video in
-                                        NavigationLink(value: video) {
-                                            VideoListRowView(video: video)
-                                        }
-                                        .buttonStyle(.plain)
-                                    }
-                                }
-                                .padding(.horizontal, NullFeedTheme.contentPadding)
-                            }
-                        }
+                    content(vm: vm, channel: channel)
+                } else if let error = vm.error {
+                    ErrorStateView(message: error) {
+                        Task { await vm.load(channelId: channelId) }
                     }
                 }
-
-                if let error = vm.error {
-                    Text(error)
-                        .font(NullFeedTheme.bodySmall)
-                        .foregroundStyle(NullFeedTheme.error)
+            }
+        }
+        .toolbar {
+            ToolbarItem(placement: .topBarTrailing) {
+                Button("Refresh") {
+                    Task { await viewModel?.refresh(channelId: channelId) }
                 }
             }
         }
@@ -81,6 +39,61 @@ struct ChannelDetailView: View {
                 viewModel = ChannelDetailViewModel(api: api)
             }
             Task { await viewModel?.load(channelId: channelId) }
+        }
+    }
+
+    @ViewBuilder
+    private func content(vm: ChannelDetailViewModel, channel: Channel) -> some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 30) {
+                // Banner header
+                ZStack(alignment: .bottomLeading) {
+                    AsyncImageView(url: channel.bannerUrl, cornerRadius: 0)
+                        .frame(height: 300)
+                        .clipped()
+
+                    LinearGradient(
+                        colors: [.clear, NullFeedTheme.background],
+                        startPoint: .top,
+                        endPoint: .bottom
+                    )
+                    .frame(height: 150)
+
+                    HStack(spacing: 20) {
+                        AsyncImageView(url: channel.avatarUrl, cornerRadius: 30)
+                            .frame(width: 60, height: 60)
+
+                        Text(channel.name)
+                            .font(NullFeedTheme.headlineMedium)
+                            .foregroundStyle(NullFeedTheme.textPrimary)
+                    }
+                    .padding(.horizontal, NullFeedTheme.contentPadding)
+                    .padding(.bottom, 20)
+                }
+
+                // Videos
+                if vm.videos.isEmpty {
+                    EmptyStateView(
+                        iconName: "play.rectangle",
+                        title: "No Videos",
+                        subtitle: "Videos will appear here once downloaded"
+                    )
+                    .frame(maxWidth: .infinity)
+                    .padding(.top, 60)
+                } else {
+                    LazyVStack(spacing: 8) {
+                        ForEach(Array(vm.videos.enumerated()), id: \.element.id) { index, video in
+                            NavigationLink(value: video) {
+                                VideoListRowView(video: video)
+                            }
+                            .buttonStyle(CardButtonStyle())
+                            .prefersDefaultFocus(index == 0, in: listFocus)
+                        }
+                    }
+                    .padding(.horizontal, NullFeedTheme.contentPadding)
+                    .focusScope(listFocus)
+                }
+            }
         }
     }
 }

@@ -131,6 +131,17 @@ final class APIClient {
         try await deleteVoid(AppConstants.channelUnsubscribe(channelId))
     }
 
+    /// Ask the server to poll every subscribed channel for new content.
+    /// Fire-and-forget: the server enqueues the work and returns immediately.
+    func pollAllChannels() async throws {
+        try await postVoid(AppConstants.channelsPoll)
+    }
+
+    /// Ask the server to poll a single channel for new content.
+    func pollChannel(_ channelId: String) async throws {
+        try await postVoid(AppConstants.channelPoll(channelId))
+    }
+
     // MARK: - Videos
 
     func getVideo(_ id: String) async throws -> Video {
