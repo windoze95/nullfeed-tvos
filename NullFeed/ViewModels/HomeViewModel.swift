@@ -24,20 +24,18 @@ final class HomeViewModel {
         isLoading = true
         error = nil
 
-        // Run the three feeds concurrently but handle each independently so one
-        // failing endpoint doesn't blank the rows that loaded fine.
-        async let cw = api.getContinueWatching()
-        async let ne = api.getNewEpisodes()
-        async let ra = api.getRecentlyAdded()
-
-        var lastError: String?
-        do { continueWatching = try await cw } catch { lastError = error.localizedDescription }
-        do { newEpisodes = try await ne } catch { lastError = error.localizedDescription }
-        do { recentlyAdded = try await ra } catch { lastError = error.localizedDescription }
-
-        // Only surface an error when nothing loaded at all; otherwise show what
-        // we have and stay silent about the partial failure.
-        error = isEmpty ? lastError : nil
+        do {
+            // One round trip returns all three rows; the server decides what
+            // counts as continue-watching / new / recently-added.
+            let feed = try await api.getHomeFeed()
+            continueWatching = feed.continueWatching
+            newEpisodes = feed.newEpisodes
+            recentlyAdded = feed.recentlyAdded
+        } catch {
+            // Only surface an error when nothing is on screen; a failed refresh
+            // shouldn't blank rows that are already showing.
+            self.error = isEmpty ? error.localizedDescription : nil
+        }
 
         isLoading = false
     }

@@ -5,6 +5,7 @@ enum WebSocketEventType: String, Sendable {
     case downloadComplete = "download_complete"
     case previewReady = "preview_ready"
     case newEpisode = "new_episode"
+    case progressUpdated = "progress_updated"
     case recommendationReady = "recommendation_ready"
     case unknown
 }

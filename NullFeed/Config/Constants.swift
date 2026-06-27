@@ -20,6 +20,7 @@ enum AppConstants {
     static let channelSubscribe = "\(apiBase)/channels/subscribe"
     static let channelsPoll = "\(apiBase)/channels/poll"
     static let activeDownloads = "\(apiBase)/videos/downloads"
+    static let feedHome = "\(apiBase)/feed/home"
     static let feedContinueWatching = "\(apiBase)/feed/continue-watching"
     static let feedNewEpisodes = "\(apiBase)/feed/new-episodes"
     static let feedRecentlyAdded = "\(apiBase)/feed/recently-added"
