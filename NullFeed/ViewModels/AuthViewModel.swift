@@ -58,17 +58,37 @@ final class AuthViewModel {
         profiles = try await api.getProfiles()
     }
 
-    func selectProfile(userId: String, pin: String? = nil) async {
+    @discardableResult
+    func selectProfile(userId: String, pin: String? = nil) async -> ProfileSelectOutcome {
         isLoading = true
         error = nil
+        defer { isLoading = false }
 
         do {
             let response = try await api.selectProfile(userId: userId, pin: pin)
             appState.login(user: response.user, token: response.token)
+            return .success
+        } catch APIError.httpStatus(let code) {
+            switch code {
+            case 403:
+                // Wrong or missing PIN -- let the caller re-prompt.
+                return .incorrectPin
+            case 429:
+                return .lockedOut
+            default:
+                self.error = "Failed to select profile (HTTP \(code))"
+                return .failed(self.error ?? "Failed to select profile")
+            }
         } catch {
             self.error = "Failed to select profile: \(error.localizedDescription)"
+            return .failed(error.localizedDescription)
         }
-
-        isLoading = false
     }
+}
+
+enum ProfileSelectOutcome: Sendable {
+    case success
+    case incorrectPin
+    case lockedOut
+    case failed(String)
 }

@@ -3,24 +3,18 @@ import SwiftUI
 struct VideoListRowView: View {
     let video: Video
 
+    @Environment(APIClient.self) private var api
+
     var body: some View {
         HStack(spacing: 20) {
             // Thumbnail
             ZStack(alignment: .bottomTrailing) {
                 AsyncImageView(
-                    url: nil, // Videos don't have thumbnail URLs in the model
+                    url: api.mediaURL(video.thumbnailUrl),
                     cornerRadius: 8
                 )
                 .frame(width: 240, height: 135)
-                .overlay(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(NullFeedTheme.surface)
-                        .overlay(
-                            Image(systemName: "play.rectangle.fill")
-                                .font(.system(size: 32))
-                                .foregroundStyle(NullFeedTheme.textMuted)
-                        )
-                )
+                .clipped()
 
                 if video.durationSeconds > 0 {
                     Text(video.durationSeconds.formattedDuration)

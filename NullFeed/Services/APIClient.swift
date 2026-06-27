@@ -14,6 +14,15 @@ final class APIClient {
         storage.serverUrl ?? "http://localhost:8484"
     }
 
+    /// Resolve a possibly-relative media path served by the backend
+    /// (e.g. "/data/thumbnails/x.jpg") into an absolute URL string.
+    /// Absolute URLs and nil/empty values pass through unchanged.
+    func mediaURL(_ path: String?) -> String? {
+        guard let path, !path.isEmpty else { return nil }
+        if path.hasPrefix("http://") || path.hasPrefix("https://") { return path }
+        return "\(baseURL)\(path)"
+    }
+
     // MARK: - HTTP Helpers
 
     private func buildRequest(_ method: String, path: String, body: [String: Any]? = nil) throws -> URLRequest {
@@ -34,8 +43,11 @@ final class APIClient {
 
     private func perform(_ request: URLRequest) async throws -> Data {
         let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, (200...299).contains(http.statusCode) else {
+        guard let http = response as? HTTPURLResponse else {
             throw APIError.requestFailed
+        }
+        guard (200...299).contains(http.statusCode) else {
+            throw APIError.httpStatus(http.statusCode)
         }
         return data
     }
@@ -216,11 +228,13 @@ private struct PaginatedVideos: Decodable {
 enum APIError: Error, LocalizedError {
     case invalidURL
     case requestFailed
+    case httpStatus(Int)
 
     var errorDescription: String? {
         switch self {
         case .invalidURL: "Invalid URL"
         case .requestFailed: "Request failed"
+        case .httpStatus(let code): "Request failed (HTTP \(code))"
         }
     }
 }

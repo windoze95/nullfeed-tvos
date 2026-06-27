@@ -12,29 +12,22 @@ enum WebSocketEventType: String, Sendable {
 struct WebSocketEvent: Sendable {
     let type: WebSocketEventType
     let videoId: String?
-    let progress: Double?
+    let percentage: Double?
 
-    init(type: WebSocketEventType, videoId: String? = nil, progress: Double? = nil) {
+    init(type: WebSocketEventType, videoId: String? = nil, percentage: Double? = nil) {
         self.type = type
         self.videoId = videoId
-        self.progress = progress
+        self.percentage = percentage
     }
 
     static func from(json: [String: Any]) -> WebSocketEvent {
         let typeStr = json["type"] as? String ?? ""
         let data = json["data"] as? [String: Any] ?? [:]
-        let eventType: WebSocketEventType
-        switch typeStr {
-        case "download_progress": eventType = .downloadProgress
-        case "download_complete": eventType = .downloadComplete
-        case "preview_ready": eventType = .previewReady
-        case "new_episode": eventType = .newEpisode
-        case "recommendation_ready": eventType = .recommendationReady
-        default: eventType = .unknown
-        }
+        let eventType = WebSocketEventType(rawValue: typeStr) ?? .unknown
         let videoId = data["video_id"] as? String
-        let progress = data["progress"] as? Double
-        return WebSocketEvent(type: eventType, videoId: videoId, progress: progress)
+        // Backend sends download progress under the key `percentage` (0-100).
+        let percentage = data["percentage"] as? Double
+        return WebSocketEvent(type: eventType, videoId: videoId, percentage: percentage)
     }
 }
 
@@ -44,21 +37,36 @@ final class WebSocketClient {
     private var task: URLSessionWebSocketTask?
     private var serverUrl: String?
     private var userId: String?
+    private var token: String?
     private(set) var isConnected = false
 
-    private var continuation: AsyncStream<WebSocketEvent>.Continuation?
-    private(set) var events: AsyncStream<WebSocketEvent>
+    // Each observer (player, feeds, ...) gets its own stream so events are
+    // broadcast to all of them rather than competing for a single stream.
+    private var subscribers: [UUID: AsyncStream<WebSocketEvent>.Continuation] = [:]
 
-    init() {
-        var cont: AsyncStream<WebSocketEvent>.Continuation?
-        events = AsyncStream { cont = $0 }
-        continuation = cont
+    /// Subscribe to the live event stream. Every subscriber receives every event.
+    /// The subscription ends (and is cleaned up) when the consuming task is
+    /// cancelled or the returned stream is dropped.
+    func subscribe() -> AsyncStream<WebSocketEvent> {
+        var continuation: AsyncStream<WebSocketEvent>.Continuation!
+        let stream = AsyncStream<WebSocketEvent> { continuation = $0 }
+        let id = UUID()
+        subscribers[id] = continuation
+        continuation.onTermination = { [weak self] _ in
+            Task { @MainActor in self?.removeSubscriber(id) }
+        }
+        return stream
     }
 
-    func connect(serverUrl: String, userId: String) {
+    private func removeSubscriber(_ id: UUID) {
+        subscribers[id] = nil
+    }
+
+    func connect(serverUrl: String, userId: String, token: String?) {
         disconnect()
         self.serverUrl = serverUrl
         self.userId = userId
+        self.token = token
         doConnect()
     }
 
@@ -68,6 +76,7 @@ final class WebSocketClient {
         isConnected = false
         serverUrl = nil
         userId = nil
+        token = nil
     }
 
     private func doConnect() {
@@ -78,7 +87,13 @@ final class WebSocketClient {
             .replacingOccurrences(of: "https://", with: "")
             .replacingOccurrences(of: "http://", with: "")
         let path = AppConstants.websocket(userId)
-        guard let url = URL(string: "\(wsScheme)://\(host)\(path)") else { return }
+        guard var components = URLComponents(string: "\(wsScheme)://\(host)\(path)") else { return }
+        // The backend closes the socket with code 4401 unless a valid session
+        // token is supplied as a query parameter.
+        if let token, !token.isEmpty {
+            components.queryItems = [URLQueryItem(name: "token", value: token)]
+        }
+        guard let url = components.url else { return }
 
         let wsTask = URLSession.shared.webSocketTask(with: url)
         self.task = wsTask
@@ -121,8 +136,13 @@ final class WebSocketClient {
             return
         }
 
-        let event = WebSocketEvent.from(json: json)
-        continuation?.yield(event)
+        broadcast(WebSocketEvent.from(json: json))
+    }
+
+    private func broadcast(_ event: WebSocketEvent) {
+        for continuation in subscribers.values {
+            continuation.yield(event)
+        }
     }
 
     private func scheduleReconnect() {
@@ -134,12 +154,4 @@ final class WebSocketClient {
             self.doConnect()
         }
     }
-
-    private func resetStream() {
-        continuation?.finish()
-        var cont: AsyncStream<WebSocketEvent>.Continuation?
-        events = AsyncStream { cont = $0 }
-        continuation = cont
-    }
-
 }
