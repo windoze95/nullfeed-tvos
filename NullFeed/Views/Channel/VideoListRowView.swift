@@ -2,6 +2,9 @@ import SwiftUI
 
 struct VideoListRowView: View {
     let video: Video
+    /// Live download progress (0...1) while the video is downloading; nil when
+    /// there's no active download to show.
+    var downloadProgress: Double?
 
     @Environment(APIClient.self) private var api
 
@@ -51,7 +54,10 @@ struct VideoListRowView: View {
                     }
                 }
 
-                if video.watchProgress > 0 && !video.isWatched {
+                if video.status == .downloading {
+                    ProgressBarView(progress: downloadProgress ?? 0, height: 4)
+                        .frame(maxWidth: 200)
+                } else if video.watchProgress > 0 && !video.isWatched {
                     ProgressBarView(progress: video.watchProgress, height: 4)
                         .frame(maxWidth: 200)
                 }
@@ -71,7 +77,7 @@ struct VideoListRowView: View {
                 .font(NullFeedTheme.caption)
                 .foregroundStyle(NullFeedTheme.accent)
         case .downloading:
-            Label("Downloading", systemImage: "arrow.down.circle")
+            Label(downloadingLabel, systemImage: "arrow.down.circle")
                 .font(NullFeedTheme.caption)
                 .foregroundStyle(NullFeedTheme.accent)
         case .pending:
@@ -87,5 +93,12 @@ struct VideoListRowView: View {
                 .font(NullFeedTheme.caption)
                 .foregroundStyle(NullFeedTheme.textMuted)
         }
+    }
+
+    private var downloadingLabel: String {
+        if let downloadProgress {
+            return "Downloading \(Int(downloadProgress * 100))%"
+        }
+        return "Downloading"
     }
 }

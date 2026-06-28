@@ -3,7 +3,9 @@ import SwiftUI
 struct ChannelDetailView: View {
     let channelId: String
     @Environment(APIClient.self) private var api
+    @Environment(WebSocketClient.self) private var webSocket
     @State private var viewModel: ChannelDetailViewModel?
+    @State private var actionSheetVideo: Video?
     @Namespace private var listFocus
 
     var body: some View {
@@ -30,15 +32,23 @@ struct ChannelDetailView: View {
             }
         }
         .navigationDestination(for: Video.self) { video in
-            if video.isPlayable {
-                PlayerView(videoId: video.id)
-            }
+            // Only playable videos navigate here now; non-playable rows open the
+            // actions sheet instead of pushing a blank player (issue #16).
+            PlayerView(videoId: video.id)
         }
         .onAppear {
             if viewModel == nil {
                 viewModel = ChannelDetailViewModel(api: api)
             }
             Task { await viewModel?.load(channelId: channelId) }
+        }
+        .task {
+            // Mirror live download progress onto the rows: advance the bar as
+            // `download_progress` events arrive and flip a row to playable once
+            // its download completes.
+            for await event in webSocket.subscribe() {
+                await viewModel?.handle(event)
+            }
         }
     }
 
@@ -83,16 +93,63 @@ struct ChannelDetailView: View {
                 } else {
                     LazyVStack(spacing: 8) {
                         ForEach(Array(vm.videos.enumerated()), id: \.element.id) { index, video in
-                            NavigationLink(value: video) {
-                                VideoListRowView(video: video)
-                            }
-                            .buttonStyle(CardButtonStyle())
-                            .prefersDefaultFocus(index == 0, in: listFocus)
+                            videoRow(vm: vm, video: video)
+                                .buttonStyle(CardButtonStyle())
+                                .prefersDefaultFocus(index == 0, in: listFocus)
+                                .contextMenu { actionMenu(vm: vm, video: video) }
                         }
                     }
                     .padding(.horizontal, NullFeedTheme.contentPadding)
                     .focusScope(listFocus)
                 }
+            }
+        }
+        .sheet(item: $actionSheetVideo) { video in
+            VideoActionsSheet(
+                video: video,
+                thumbnailURL: api.mediaURL(video.thumbnailUrl),
+                onDownload: { Task { await vm.downloadVideo(video.id) } },
+                onCancel: { Task { await vm.cancelDownload(video.id) } },
+                onDelete: { Task { await vm.deleteVideo(video.id) } }
+            )
+        }
+    }
+
+    /// A playable video plays on selection (unchanged); a non-playable one opens
+    /// the actions sheet instead of pushing a blank player.
+    @ViewBuilder
+    private func videoRow(vm: ChannelDetailViewModel, video: Video) -> some View {
+        let row = VideoListRowView(video: video, downloadProgress: vm.downloadProgress[video.id])
+        if video.isPlayable {
+            NavigationLink(value: video) { row }
+        } else {
+            Button { actionSheetVideo = video } label: { row }
+        }
+    }
+
+    /// Long-press menu mirroring the sheet's status-appropriate actions, so even
+    /// playable rows can be downloaded (HQ upgrade) or deleted from the couch.
+    @ViewBuilder
+    private func actionMenu(vm: ChannelDetailViewModel, video: Video) -> some View {
+        if video.isDownloadable {
+            Button {
+                Task { await vm.downloadVideo(video.id) }
+            } label: {
+                Label(video.status == .failed ? "Retry Download" : "Download", systemImage: "arrow.down.circle")
+            }
+        }
+        if video.isInProgress {
+            Button(role: .destructive) {
+                Task { await vm.cancelDownload(video.id) }
+            } label: {
+                Label("Cancel Download", systemImage: "xmark.circle")
+            }
+        }
+        if video.status == .complete {
+            Button(role: .destructive) {
+                Task { await vm.deleteVideo(video.id) }
+            } label: {
+                Label("Delete Download", systemImage: "trash")
             }
         }
     }
