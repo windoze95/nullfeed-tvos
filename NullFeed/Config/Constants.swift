@@ -16,6 +16,7 @@ enum AppConstants {
     static let authProfiles = "\(apiBase)/auth/profiles"
     static let authSelect = "\(apiBase)/auth/select"
     static let authCreate = "\(apiBase)/auth/create"
+    static let authWsTicket = "\(apiBase)/auth/ws-ticket"
     static let channels = "\(apiBase)/channels"
     static let videos = "\(apiBase)/videos"
     static let channelSubscribe = "\(apiBase)/channels/subscribe"
@@ -40,6 +41,7 @@ enum AppConstants {
     static func channelUnsubscribe(_ id: String) -> String { "\(apiBase)/channels/\(id)/unsubscribe" }
     static func videoDetail(_ id: String) -> String { "\(apiBase)/videos/\(id)" }
     static func videoStream(_ id: String) -> String { "\(apiBase)/videos/\(id)/stream" }
+    static func videoPlaybackTicket(_ id: String) -> String { "\(apiBase)/videos/\(id)/playback-ticket" }
     static func videoProgress(_ id: String) -> String { "\(apiBase)/videos/\(id)/progress" }
     static func videoDownload(_ id: String) -> String { "\(apiBase)/videos/\(id)/download" }
     static func videoCancel(_ id: String) -> String { "\(apiBase)/videos/\(id)/cancel" }
