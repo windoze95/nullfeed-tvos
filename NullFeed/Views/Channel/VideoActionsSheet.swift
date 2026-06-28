@@ -8,6 +8,11 @@ import SwiftUI
 struct VideoActionsSheet: View {
     let video: Video
     let thumbnailURL: String?
+    /// Whether the video is currently in the watch-later queue, so the queue
+    /// action shows the right verb.
+    let isQueued: Bool
+    let onAddToQueue: () -> Void
+    let onRemoveFromQueue: () -> Void
     let onDownload: () -> Void
     let onCancel: () -> Void
     let onDelete: () -> Void
@@ -50,6 +55,16 @@ struct VideoActionsSheet: View {
                 if video.status == .complete {
                     actionButton("Delete Download", systemImage: "trash.fill", role: .destructive) {
                         perform(onDelete)
+                    }
+                }
+
+                if isQueued {
+                    actionButton("Remove from Queue", systemImage: "minus.circle.fill", role: .destructive) {
+                        perform(onRemoveFromQueue)
+                    }
+                } else {
+                    actionButton("Add to Queue", systemImage: "plus.circle.fill") {
+                        perform(onAddToQueue)
                     }
                 }
 

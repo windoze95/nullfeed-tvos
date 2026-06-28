@@ -11,6 +11,7 @@ final class PlayerViewModel {
 
     private let api: APIClient
     private let webSocket: WebSocketClient
+    private let queue: QueueViewModel
     private var progressTimer: Timer?
     private var wsTask: Task<Void, Never>?
     private var videoId: String = ""
@@ -20,10 +21,14 @@ final class PlayerViewModel {
     /// clears the resume position) can't be clobbered by a trailing progress
     /// save from the timer or `cleanup()`.
     private var didReachEnd = false
+    /// The in-flight auto-advance, cancelled by `cleanup()` so a manual exit
+    /// taken while the next item is being fetched can't start ghost playback.
+    private var advanceTask: Task<Void, Never>?
 
-    init(api: APIClient, webSocket: WebSocketClient) {
+    init(api: APIClient, webSocket: WebSocketClient, queue: QueueViewModel) {
         self.api = api
         self.webSocket = webSocket
+        self.queue = queue
     }
 
     func loadVideo(id: String) async {
@@ -34,6 +39,11 @@ final class PlayerViewModel {
 
         do {
             let video = try await api.getVideo(id)
+            // Bail if the view went away while loading (e.g. a manual exit during
+            // an auto-advance), so we don't start a player or preview listener for
+            // an item nothing is showing. Harmless for the initial load, whose
+            // task is never cancelled.
+            if Task.isCancelled { isLoading = false; return }
             self.video = video
 
             // Path 1: HQ complete -- play directly
@@ -71,6 +81,11 @@ final class PlayerViewModel {
             let resumePos = max(0, video.watchPositionSeconds - 10)
             await avPlayer.seek(to: CMTime(seconds: Double(resumePos), preferredTimescale: 1))
         }
+
+        // A cancelled task means the view went away while we were preparing this
+        // item (e.g. a manual exit during an auto-advance fetch); don't attach a
+        // player nothing is showing.
+        guard !Task.isCancelled else { return }
 
         avPlayer.play()
         player = avPlayer
@@ -255,6 +270,48 @@ final class PlayerViewModel {
         Task { [api, videoId] in
             try? await api.updateProgress(videoId: videoId, positionSeconds: 0, isWatched: true)
         }
+        // Follow the watch-later queue. Only the natural end-of-item posts this
+        // notification, so a manual exit never auto-advances.
+        advanceTask = Task { await advanceToNextInQueue() }
+    }
+
+    // MARK: - Auto-advance
+
+    /// Continue with the next item in the watch-later queue when a video plays to
+    /// its end. The finished (now watched) video leaves the queue. Does nothing
+    /// if the finished video wasn't part of the queue or was its last item, so
+    /// finishing a one-off video never pulls the user into the queue.
+    private func advanceToNextInQueue() async {
+        let finishedId = videoId
+        await queue.ensureLoaded()
+        if Task.isCancelled { return }
+        guard queue.isQueued(finishedId) else { return }
+
+        // Resolve the successor before removing the finished item, since removal
+        // shifts the list. The removal is fire-and-forget: its in-memory effect
+        // is immediate and the DELETE is idempotent, so the advance needn't wait
+        // on the network.
+        let next = queue.videoAfter(finishedId)
+        Task { await queue.remove(finishedId) }
+
+        guard let next else { return }
+        teardownForNextItem()
+        await loadVideo(id: next.id)
+    }
+
+    /// Tear down the finished item's player, observers, and timers before the
+    /// next item loads into the same view, so nothing leaks across the swap.
+    private func teardownForNextItem() {
+        wsTask?.cancel()
+        wsTask = nil
+        if let endObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+            self.endObserver = nil
+        }
+        progressTimer?.invalidate()
+        progressTimer = nil
+        player?.pause()
+        player = nil
     }
 
     // MARK: - Progress
@@ -282,6 +339,10 @@ final class PlayerViewModel {
     }
 
     func cleanup() {
+        // Cancel any in-flight auto-advance first so a manual exit can't start
+        // the next item after the view has gone.
+        advanceTask?.cancel()
+        advanceTask = nil
         saveProgress()
         progressTimer?.invalidate()
         progressTimer = nil

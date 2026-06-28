@@ -30,6 +30,7 @@ enum AppConstants {
     static let feedRecentlyAdded = "\(apiBase)/feed/recently-added"
     static let discover = "\(apiBase)/discover"
     static let discoverRefresh = "\(apiBase)/discover/refresh"
+    static let queue = "\(apiBase)/queue"
     static let health = "\(apiBase)/health"
 
     static func channelDetail(_ id: String) -> String { "\(apiBase)/channels/\(id)" }
@@ -44,6 +45,7 @@ enum AppConstants {
     static func videoCancel(_ id: String) -> String { "\(apiBase)/videos/\(id)/cancel" }
     static func videoPreview(_ id: String) -> String { "\(apiBase)/videos/\(id)/preview" }
     static func videoPreviewStream(_ id: String) -> String { "\(apiBase)/videos/\(id)/preview-stream" }
+    static func videoQueue(_ id: String) -> String { "\(apiBase)/videos/\(id)/queue" }
     static func discoverDismiss(_ id: String) -> String { "\(apiBase)/discover/\(id)/dismiss" }
     static func websocket(_ userId: String) -> String { "/ws/\(userId)" }
 

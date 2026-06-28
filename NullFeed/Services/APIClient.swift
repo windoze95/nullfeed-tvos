@@ -305,6 +305,29 @@ final class APIClient {
         try await postVoid(AppConstants.discoverRefresh)
     }
 
+    // MARK: - Queue
+
+    /// Add a video to the watch-later queue. Idempotent server-side, so adding a
+    /// video that's already queued is a no-op.
+    func addToQueue(_ videoId: String) async throws {
+        try await postVoid(AppConstants.videoQueue(videoId))
+    }
+
+    /// Remove a video from the watch-later queue. Idempotent server-side, so
+    /// removing a video that isn't queued is a no-op.
+    func removeFromQueue(_ videoId: String) async throws {
+        try await deleteVoid(AppConstants.videoQueue(videoId))
+    }
+
+    /// One page of the watch-later queue, in play order. Cursor-based like
+    /// search: pass the previous page's `nextCursor` back as `cursor`; a nil
+    /// `nextCursor` in the response means this was the last page.
+    func getQueue(cursor: String? = nil) async throws -> VideoSearchPage {
+        var path = AppConstants.queue
+        if let cursor { path += "?cursor=\(encodeQuery(cursor))" }
+        return try await get(path)
+    }
+
     // MARK: - Health
 
     func checkHealth() async -> Bool {

@@ -4,6 +4,7 @@ struct ChannelDetailView: View {
     let channelId: String
     @Environment(APIClient.self) private var api
     @Environment(WebSocketClient.self) private var webSocket
+    @Environment(QueueViewModel.self) private var queue
     @State private var viewModel: ChannelDetailViewModel?
     @State private var actionSheetVideo: Video?
     @Namespace private var listFocus
@@ -41,6 +42,8 @@ struct ChannelDetailView: View {
                 viewModel = ChannelDetailViewModel(api: api)
             }
             Task { await viewModel?.load(channelId: channelId) }
+            // Seed queue membership so the rows show Add vs Remove correctly.
+            Task { await queue.ensureLoaded() }
         }
         .task {
             // Mirror live download progress onto the rows: advance the bar as
@@ -108,6 +111,9 @@ struct ChannelDetailView: View {
             VideoActionsSheet(
                 video: video,
                 thumbnailURL: api.mediaURL(video.thumbnailUrl),
+                isQueued: queue.isQueued(video.id),
+                onAddToQueue: { Task { await queue.add(video) } },
+                onRemoveFromQueue: { Task { await queue.remove(video.id) } },
                 onDownload: { Task { await vm.downloadVideo(video.id) } },
                 onCancel: { Task { await vm.cancelDownload(video.id) } },
                 onDelete: { Task { await vm.deleteVideo(video.id) } }
@@ -150,6 +156,19 @@ struct ChannelDetailView: View {
                 Task { await vm.deleteVideo(video.id) }
             } label: {
                 Label("Delete Download", systemImage: "trash")
+            }
+        }
+        if queue.isQueued(video.id) {
+            Button(role: .destructive) {
+                Task { await queue.remove(video.id) }
+            } label: {
+                Label("Remove from Queue", systemImage: "minus.circle")
+            }
+        } else {
+            Button {
+                Task { await queue.add(video) }
+            } label: {
+                Label("Add to Queue", systemImage: "plus.circle")
             }
         }
     }
