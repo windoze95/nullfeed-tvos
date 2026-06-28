@@ -58,6 +58,9 @@ enum AppConstants {
     static let progressSaveIntervalSeconds = 10
     static let skipForwardSeconds = 10
     static let skipBackwardSeconds = 10
+    /// How far to rewind from a saved position when resuming, so the viewer
+    /// re-orients on a few seconds of context before the cut they left off at.
+    static let resumeRewindSeconds = 10
 
     // MARK: - UI
     static let cardAspectRatio: CGFloat = 16.0 / 9.0

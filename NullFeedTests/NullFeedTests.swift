@@ -448,6 +448,35 @@ final class NullFeedTests: XCTestCase {
         XCTAssertNil(queue.videoAfter("missing"), "an unqueued video has no successor")
     }
 
+    // MARK: - Resume prompt
+
+    @MainActor
+    func testResumePointDetection() throws {
+        // A partly-watched video offers a resume choice.
+        let partly = try makeVideo(id: "p", positionSeconds: 90, isWatched: false)
+        XCTAssertTrue(PlayerViewModel.hasResumePoint(for: partly))
+
+        // A finished video (position cleared, watched set) starts over.
+        let finished = try makeVideo(id: "f", positionSeconds: 0, isWatched: true)
+        XCTAssertFalse(PlayerViewModel.hasResumePoint(for: finished))
+
+        // A never-started video has nothing to resume.
+        let fresh = try makeVideo(id: "n", positionSeconds: 0, isWatched: false)
+        XCTAssertFalse(PlayerViewModel.hasResumePoint(for: fresh))
+
+        // Defensive: a saved position with the watched flag set still starts over.
+        let watchedWithPos = try makeVideo(id: "w", positionSeconds: 120, isWatched: true)
+        XCTAssertFalse(PlayerViewModel.hasResumePoint(for: watchedWithPos))
+    }
+
+    @MainActor
+    func testResumeStartRewinds() {
+        // Resume rewinds a few seconds for re-orientation, clamped at zero.
+        XCTAssertEqual(PlayerViewModel.resumeStart(forPosition: 90), 90 - AppConstants.resumeRewindSeconds)
+        XCTAssertEqual(PlayerViewModel.resumeStart(forPosition: 5), 0)
+        XCTAssertEqual(PlayerViewModel.resumeStart(forPosition: 0), 0)
+    }
+
     private func makeVideo(id: String) throws -> Video {
         let json = """
         {
@@ -456,6 +485,22 @@ final class NullFeedTests: XCTestCase {
             "channel_id": "ch-1",
             "title": "Video \(id)",
             "status": "COMPLETE",
+            "channel_name": "Chan"
+        }
+        """.data(using: .utf8)!
+        return try JSONDecoder.nullFeed.decode(Video.self, from: json)
+    }
+
+    private func makeVideo(id: String, positionSeconds: Int, isWatched: Bool) throws -> Video {
+        let json = """
+        {
+            "id": "\(id)",
+            "youtube_video_id": "yt-\(id)",
+            "channel_id": "ch-1",
+            "title": "Video \(id)",
+            "status": "COMPLETE",
+            "watch_position_seconds": \(positionSeconds),
+            "is_watched": \(isWatched),
             "channel_name": "Chan"
         }
         """.data(using: .utf8)!
