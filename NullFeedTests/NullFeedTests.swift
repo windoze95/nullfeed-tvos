@@ -311,6 +311,73 @@ final class NullFeedTests: XCTestCase {
         XCTAssertNil(page.nextCursor)
     }
 
+    // MARK: - YouTube import
+
+    func testYoutubeProfileDecoding() throws {
+        // POST /api/youtube/resolve returns the resolved identity; snake_case
+        // keys (channel_id, avatar_url, follower_count) map to camelCase.
+        let json = """
+        {
+            "handle": "@example",
+            "channel_id": "UCexample",
+            "name": "Example Channel",
+            "description": "A channel",
+            "avatar_url": "https://example.com/a.jpg",
+            "banner_url": null,
+            "follower_count": 12345
+        }
+        """.data(using: .utf8)!
+
+        let profile = try JSONDecoder.nullFeed.decode(YoutubeProfile.self, from: json)
+        XCTAssertEqual(profile.handle, "@example")
+        XCTAssertEqual(profile.channelId, "UCexample")
+        XCTAssertEqual(profile.name, "Example Channel")
+        XCTAssertEqual(profile.avatarUrl, "https://example.com/a.jpg")
+        XCTAssertNil(profile.bannerUrl)
+        XCTAssertEqual(profile.followerCount, 12345)
+    }
+
+    func testChannelSuggestionDecoding() throws {
+        // POST /api/youtube/suggestions returns {suggestions: [...]}; each item's
+        // youtube_channel_id is the identity used for selection and bulk subscribe.
+        let json = """
+        {
+            "youtube_channel_id": "UCabc",
+            "name": "Suggested Channel",
+            "handle": "@suggested",
+            "avatar_url": null,
+            "source": "featured",
+            "score": 7
+        }
+        """.data(using: .utf8)!
+
+        let suggestion = try JSONDecoder.nullFeed.decode(ChannelSuggestion.self, from: json)
+        XCTAssertEqual(suggestion.youtubeChannelId, "UCabc")
+        XCTAssertEqual(suggestion.id, "UCabc") // Identifiable maps to the YT id
+        XCTAssertEqual(suggestion.name, "Suggested Channel")
+        XCTAssertEqual(suggestion.source, "featured")
+        XCTAssertEqual(suggestion.score, 7)
+    }
+
+    func testBulkSubscribeResultDecoding() throws {
+        // POST /api/channels/subscribe-bulk returns {results: [...]}; per-item
+        // status is "subscribed" | "already_subscribed" | "error".
+        let json = """
+        {
+            "youtube_channel_id": "UCabc",
+            "status": "subscribed",
+            "channel_id": "ch-1",
+            "detail": null
+        }
+        """.data(using: .utf8)!
+
+        let result = try JSONDecoder.nullFeed.decode(BulkSubscribeResult.self, from: json)
+        XCTAssertEqual(result.youtubeChannelId, "UCabc")
+        XCTAssertEqual(result.status, "subscribed")
+        XCTAssertEqual(result.channelId, "ch-1")
+        XCTAssertNil(result.detail)
+    }
+
     // MARK: - WebSocket events
 
     func testWebSocketDownloadProgressParsing() {
