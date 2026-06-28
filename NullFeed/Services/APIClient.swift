@@ -25,7 +25,7 @@ final class APIClient {
 
     // MARK: - HTTP Helpers
 
-    private func buildRequest(_ method: String, path: String, body: [String: Any]? = nil) throws -> URLRequest {
+    private func buildRequest(_ method: String, path: String, body: [String: Any]? = nil, timeout: TimeInterval? = nil) throws -> URLRequest {
         guard let url = URL(string: "\(baseURL)\(path)") else {
             throw APIError.invalidURL
         }
@@ -35,6 +35,7 @@ final class APIClient {
         if let token = storage.sessionToken {
             request.setValue(token, forHTTPHeaderField: "X-User-Token")
         }
+        if let timeout { request.timeoutInterval = timeout }
         if let body {
             request.httpBody = try JSONSerialization.data(withJSONObject: body)
         }
@@ -72,8 +73,8 @@ final class APIClient {
         return try JSONDecoder.nullFeed.decode(T.self, from: data)
     }
 
-    private func post<T: Decodable>(_ path: String, body: [String: Any]? = nil) async throws -> T {
-        let request = try buildRequest("POST", path: path, body: body)
+    private func post<T: Decodable>(_ path: String, body: [String: Any]? = nil, timeout: TimeInterval? = nil) async throws -> T {
+        let request = try buildRequest("POST", path: path, body: body, timeout: timeout)
         let data = try await perform(request)
         return try JSONDecoder.nullFeed.decode(T.self, from: data)
     }
@@ -106,11 +107,60 @@ final class APIClient {
         return (user: response.user, token: response.token)
     }
 
-    func createProfile(displayName: String, avatarUrl: String? = nil, pin: String? = nil) async throws -> User {
-        var body: [String: Any] = ["display_name": displayName]
+    /// Create a profile. Provide a `displayName`, a `youtubeHandle`, or both: the
+    /// backend resolves a handle to fill in the name/avatar when `displayName` is
+    /// omitted. Resolving runs yt-dlp server-side, so handle creates use the
+    /// slow timeout.
+    func createProfile(
+        displayName: String? = nil,
+        avatarUrl: String? = nil,
+        pin: String? = nil,
+        youtubeHandle: String? = nil
+    ) async throws -> User {
+        var body: [String: Any] = [:]
+        if let displayName { body["display_name"] = displayName }
         if let avatarUrl { body["avatar_url"] = avatarUrl }
         if let pin { body["pin"] = pin }
-        return try await post(AppConstants.authCreate, body: body)
+        if let youtubeHandle { body["youtube_handle"] = youtubeHandle }
+        let timeout: TimeInterval? = youtubeHandle != nil ? AppConstants.slowRequestTimeout : nil
+        return try await post(AppConstants.authCreate, body: body, timeout: timeout)
+    }
+
+    // MARK: - YouTube Import
+
+    /// Resolve a YouTube handle or channel URL into a profile preview
+    /// (name, avatar, follower count). Unauthenticated; used pre-login.
+    func resolveYoutubeHandle(_ handle: String) async throws -> YoutubeProfile {
+        try await post(
+            AppConstants.youtubeResolve,
+            body: ["handle": handle],
+            timeout: AppConstants.slowRequestTimeout
+        )
+    }
+
+    /// Fetch the channels a resolved YouTube profile follows, offered as
+    /// bulk-subscribe suggestions. Unauthenticated; used pre-login.
+    func getYoutubeSuggestions(handle: String) async throws -> [ChannelSuggestion] {
+        let response: SuggestionsResponse = try await post(
+            AppConstants.youtubeSuggestions,
+            body: ["handle": handle],
+            timeout: AppConstants.slowRequestTimeout
+        )
+        return response.suggestions
+    }
+
+    /// Subscribe to up to 25 channels at once. Requires a session token, so call
+    /// after `selectProfile`. Per-item errors don't fail the batch.
+    func subscribeBulk(_ items: [ChannelSuggestion]) async throws -> [BulkSubscribeResult] {
+        let payload: [[String: Any]] = items.map {
+            ["youtube_channel_id": $0.youtubeChannelId, "name": $0.name]
+        }
+        let response: BulkSubscribeResponse = try await post(
+            AppConstants.channelSubscribeBulk,
+            body: ["items": payload],
+            timeout: AppConstants.slowRequestTimeout
+        )
+        return response.results
     }
 
     // MARK: - Channels
@@ -277,6 +327,14 @@ private struct SelectProfileResponse: Decodable {
 
 private struct PaginatedVideos: Decodable {
     let items: [Video]
+}
+
+private struct SuggestionsResponse: Decodable {
+    let suggestions: [ChannelSuggestion]
+}
+
+private struct BulkSubscribeResponse: Decodable {
+    let results: [BulkSubscribeResult]
 }
 
 /// The backend's standard error body: a human-readable `detail` and a stable

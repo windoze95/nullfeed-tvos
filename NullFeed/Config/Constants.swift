@@ -19,7 +19,10 @@ enum AppConstants {
     static let channels = "\(apiBase)/channels"
     static let videos = "\(apiBase)/videos"
     static let channelSubscribe = "\(apiBase)/channels/subscribe"
+    static let channelSubscribeBulk = "\(apiBase)/channels/subscribe-bulk"
     static let channelsPoll = "\(apiBase)/channels/poll"
+    static let youtubeResolve = "\(apiBase)/youtube/resolve"
+    static let youtubeSuggestions = "\(apiBase)/youtube/suggestions"
     static let activeDownloads = "\(apiBase)/videos/downloads"
     static let feedHome = "\(apiBase)/feed/home"
     static let feedContinueWatching = "\(apiBase)/feed/continue-watching"
@@ -43,6 +46,11 @@ enum AppConstants {
     static func videoPreviewStream(_ id: String) -> String { "\(apiBase)/videos/\(id)/preview-stream" }
     static func discoverDismiss(_ id: String) -> String { "\(apiBase)/discover/\(id)/dismiss" }
     static func websocket(_ userId: String) -> String { "/ws/\(userId)" }
+
+    // MARK: - Networking
+    /// Longer request timeout for endpoints that drive yt-dlp server-side
+    /// (handle resolve, suggestions, create-from-handle, bulk subscribe).
+    static let slowRequestTimeout: TimeInterval = 90
 
     // MARK: - Playback
     static let progressSaveIntervalSeconds = 10
