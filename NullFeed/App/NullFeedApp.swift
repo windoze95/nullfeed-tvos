@@ -2,6 +2,7 @@ import SwiftUI
 
 @main
 struct NullFeedApp: App {
+    @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
     @State private var storage: StorageService
     @State private var api: APIClient
     @State private var webSocket: WebSocketClient
@@ -29,6 +30,14 @@ struct NullFeedApp: App {
                 .environment(appState)
                 .environment(queue)
                 .preferredColorScheme(.dark)
+                .onAppear {
+                    // Bridge the UIKit app delegate (APNs callbacks) to app state.
+                    // Both refs are weak; setting them here -- before any login or
+                    // restored session triggers registration -- keeps the wiring
+                    // in place when the token/payload callbacks fire.
+                    appDelegate.appState = appState
+                    appState.pushRegistrar = appDelegate
+                }
                 .onOpenURL { url in
                     handleDeepLink(url)
                 }
@@ -41,11 +50,11 @@ struct NullFeedApp: App {
         switch url.host {
         case "player":
             if let videoId = url.pathComponents.dropFirst().first {
-                _ = videoId
+                appState.openVideo(videoId)
             }
         case "channel":
             if let channelId = url.pathComponents.dropFirst().first {
-                _ = channelId
+                _ = channelId  // Channel deep-linking is not supported yet.
             }
         default:
             break

@@ -10,6 +10,9 @@ enum AppConstants {
     static let selectedUserIdKey = "selected_user_id"
     static let sessionTokenKey = "session_token"
     static let preferredQualityKey = "preferred_quality"
+    /// Stable per-install id sent with push (de)registration. Generated once and
+    /// kept across logins so it always targets the same device record.
+    static let deviceIdKey = "device_id"
 
     // MARK: - API Paths
     static let apiBase = "/api"
@@ -33,6 +36,7 @@ enum AppConstants {
     static let discoverRefresh = "\(apiBase)/discover/refresh"
     static let queue = "\(apiBase)/queue"
     static let health = "\(apiBase)/health"
+    static let pushRegister = "\(apiBase)/push/register"
 
     static func channelDetail(_ id: String) -> String { "\(apiBase)/channels/\(id)" }
     static func channelPoll(_ id: String) -> String { "\(apiBase)/channels/\(id)/poll" }

@@ -32,14 +32,16 @@ final class APIClient {
 
     // MARK: - HTTP Helpers
 
-    private func buildRequest(_ method: String, path: String, body: [String: Any]? = nil, timeout: TimeInterval? = nil) throws -> URLRequest {
+    private func buildRequest(_ method: String, path: String, body: [String: Any]? = nil, timeout: TimeInterval? = nil, authToken: String? = nil) throws -> URLRequest {
         guard let url = URL(string: "\(baseURL)\(path)") else {
             throw APIError.invalidURL
         }
         var request = URLRequest(url: url)
         request.httpMethod = method
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
-        if let token = storage.sessionToken {
+        // `authToken` overrides the stored session token, used so a sign-out can
+        // still authenticate the push de-registration after the session is cleared.
+        if let token = authToken ?? storage.sessionToken {
             request.setValue(token, forHTTPHeaderField: "X-User-Token")
         }
         if let timeout { request.timeoutInterval = timeout }
@@ -384,6 +386,37 @@ final class APIClient {
             return false
         }
     }
+
+    // MARK: - Push Notifications
+
+    /// Register this device's APNs token so the backend can send new-episode
+    /// pushes. Returns the backend's push state (`{enabled, registered}`);
+    /// `enabled` is false when the server has no push gateway configured, which
+    /// callers should treat as a no-op rather than an error.
+    @discardableResult
+    func registerPushToken(token: String, deviceId: String) async throws -> PushRegistration {
+        let request = try buildRequest("POST", path: AppConstants.pushRegister, body: [
+            "device_token": token,
+            "device_id": deviceId,
+            "platform": "ios",
+        ])
+        let data = try await perform(request)
+        return (try? JSONDecoder.nullFeed.decode(PushRegistration.self, from: data))
+            ?? PushRegistration(enabled: false, registered: false)
+    }
+
+    /// Remove this device's push registration, e.g. on sign-out. `sessionToken`
+    /// overrides the stored token so the call still authenticates when invoked
+    /// while the session is being torn down.
+    func unregisterPushToken(deviceId: String, sessionToken: String? = nil) async throws {
+        let request = try buildRequest(
+            "DELETE",
+            path: AppConstants.pushRegister,
+            body: ["device_id": deviceId],
+            authToken: sessionToken
+        )
+        _ = try await perform(request)
+    }
 }
 
 // MARK: - Response Types
@@ -399,6 +432,27 @@ private struct PaginatedVideos: Decodable {
 
 private struct SuggestionsResponse: Decodable {
     let suggestions: [ChannelSuggestion]
+}
+
+/// The backend's push state after a register call. `enabled` is false when no
+/// push gateway is configured server-side; `registered` confirms the token was
+/// stored. Both tolerate omission so a bare `{"enabled": false}` still decodes.
+struct PushRegistration: Decodable {
+    let enabled: Bool
+    let registered: Bool
+
+    init(enabled: Bool, registered: Bool) {
+        self.enabled = enabled
+        self.registered = registered
+    }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        enabled = try c.decodeIfPresent(Bool.self, forKey: .enabled) ?? false
+        registered = try c.decodeIfPresent(Bool.self, forKey: .registered) ?? false
+    }
+
+    private enum CodingKeys: String, CodingKey { case enabled, registered }
 }
 
 private struct BulkSubscribeResponse: Decodable {
