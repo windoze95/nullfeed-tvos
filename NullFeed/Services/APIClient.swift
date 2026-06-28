@@ -56,6 +56,16 @@ final class APIClient {
         return data
     }
 
+    /// Percent-encode a query parameter value. Uses the RFC 3986 unreserved set
+    /// so opaque cursors (which may contain +, /, =) and free-text queries
+    /// survive the round trip -- `URLComponents` notably leaves "+" unescaped,
+    /// which the server would otherwise read as a space.
+    private func encodeQuery(_ value: String) -> String {
+        var allowed = CharacterSet.alphanumerics
+        allowed.insert(charactersIn: "-._~")
+        return value.addingPercentEncoding(withAllowedCharacters: allowed) ?? value
+    }
+
     private func get<T: Decodable>(_ path: String) async throws -> T {
         let request = try buildRequest("GET", path: path)
         let data = try await perform(request)
@@ -192,6 +202,23 @@ final class APIClient {
 
     func getActiveDownloads() async throws -> [Video] {
         try await get(AppConstants.activeDownloads)
+    }
+
+    // MARK: - Search
+
+    /// Search the catalog for videos matching `q`. Pages are cursor-based: pass
+    /// the previous page's `nextCursor` back as `cursor`; a nil `nextCursor` in
+    /// the response means there are no more pages.
+    func searchVideos(q: String, cursor: String? = nil, limit: Int = 20) async throws -> VideoSearchPage {
+        var query = "q=\(encodeQuery(q))&limit=\(limit)"
+        if let cursor { query += "&cursor=\(encodeQuery(cursor))" }
+        return try await get("\(AppConstants.videos)?\(query)")
+    }
+
+    /// Search subscribed channels by name. Returns the full match list (the
+    /// backend does not paginate channel matches).
+    func searchChannels(_ q: String) async throws -> [Channel] {
+        try await get("\(AppConstants.channels)?q=\(encodeQuery(q))")
     }
 
     // MARK: - Feed

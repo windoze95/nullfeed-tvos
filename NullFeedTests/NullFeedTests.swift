@@ -265,6 +265,52 @@ final class NullFeedTests: XCTestCase {
         XCTAssertTrue(feed.recentlyAdded.isEmpty)
     }
 
+    // MARK: - Search
+
+    func testVideoSearchPageDecoding() throws {
+        // GET /api/videos?q=... returns {items, total, next_cursor}; next_cursor
+        // must map to nextCursor via the snake_case decoder.
+        let json = """
+        {
+            "items": [
+                {
+                    "id": "v-1",
+                    "youtube_video_id": "yt-1",
+                    "channel_id": "ch-1",
+                    "title": "Found Video",
+                    "status": "COMPLETE",
+                    "channel_name": "Found Channel"
+                }
+            ],
+            "total": 42,
+            "next_cursor": "eyJvZmZzZXQiOiAyMH0="
+        }
+        """.data(using: .utf8)!
+
+        let page = try JSONDecoder.nullFeed.decode(VideoSearchPage.self, from: json)
+        XCTAssertEqual(page.items.count, 1)
+        XCTAssertEqual(page.items.first?.id, "v-1")
+        XCTAssertEqual(page.items.first?.channelName, "Found Channel")
+        XCTAssertEqual(page.total, 42)
+        XCTAssertEqual(page.nextCursor, "eyJvZmZzZXQiOiAyMH0=")
+    }
+
+    func testVideoSearchPageLastPageHasNilCursor() throws {
+        // The final page omits next_cursor; it must decode to nil (no more pages)
+        // and absent items/total default to empty rather than throwing.
+        let json = """
+        {
+            "items": [],
+            "total": 0
+        }
+        """.data(using: .utf8)!
+
+        let page = try JSONDecoder.nullFeed.decode(VideoSearchPage.self, from: json)
+        XCTAssertTrue(page.items.isEmpty)
+        XCTAssertEqual(page.total, 0)
+        XCTAssertNil(page.nextCursor)
+    }
+
     // MARK: - WebSocket events
 
     func testWebSocketDownloadProgressParsing() {

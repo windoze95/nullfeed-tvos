@@ -17,6 +17,7 @@ enum AppConstants {
     static let authSelect = "\(apiBase)/auth/select"
     static let authCreate = "\(apiBase)/auth/create"
     static let channels = "\(apiBase)/channels"
+    static let videos = "\(apiBase)/videos"
     static let channelSubscribe = "\(apiBase)/channels/subscribe"
     static let channelsPoll = "\(apiBase)/channels/poll"
     static let activeDownloads = "\(apiBase)/videos/downloads"

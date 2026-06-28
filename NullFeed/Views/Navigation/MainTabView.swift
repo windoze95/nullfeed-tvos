@@ -23,11 +23,17 @@ struct MainTabView: View {
                 }
                 .tag(2)
 
+            SearchView()
+                .tabItem {
+                    Label("Search", systemImage: "magnifyingglass")
+                }
+                .tag(3)
+
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape.fill")
                 }
-                .tag(3)
+                .tag(4)
         }
         .tint(NullFeedTheme.primary)
     }
