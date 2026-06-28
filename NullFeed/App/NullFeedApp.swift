@@ -11,7 +11,7 @@ struct NullFeedApp: App {
     init() {
         let storage = StorageService()
         let api = APIClient(storage: storage)
-        let webSocket = WebSocketClient()
+        let webSocket = WebSocketClient(api: api)
         let appState = AppState(storage: storage, api: api, webSocket: webSocket)
         _storage = State(initialValue: storage)
         _api = State(initialValue: api)

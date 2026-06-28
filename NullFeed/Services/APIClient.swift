@@ -6,6 +6,13 @@ final class APIClient {
     private let session = URLSession.shared
     private let storage: StorageService
 
+    /// Cached short-lived stream/WS tickets, so repeated stream URL builds for
+    /// the same video (its preview then full quality) and a freshly reconnected
+    /// socket don't each mint a new one. See `playbackTicket(videoId:)` and
+    /// `wsTicket(forceRefresh:)`.
+    private var playbackTicketCache: (videoId: String, ticket: CachedTicket)?
+    private var wsTicketCache: CachedTicket?
+
     init(storage: StorageService) {
         self.storage = storage
     }
@@ -126,6 +133,23 @@ final class APIClient {
         return try await post(AppConstants.authCreate, body: body, timeout: timeout)
     }
 
+    /// Mint (or reuse) a short-lived WebSocket ticket, used as the `?ticket=`
+    /// credential when opening the realtime socket so the session token isn't
+    /// exposed in the socket URL. Cached until shortly before it expires and
+    /// bound to the current session; `forceRefresh` skips the cache so a
+    /// reconnect always opens with a fresh ticket.
+    func wsTicket(forceRefresh: Bool = false) async throws -> String {
+        if !forceRefresh,
+           let cached = wsTicketCache,
+           cached.isValid(for: storage.sessionToken) {
+            return cached.value
+        }
+        let response: TicketResponse = try await post(AppConstants.authWsTicket)
+        let ticket = CachedTicket(response, sessionToken: storage.sessionToken)
+        wsTicketCache = ticket
+        return ticket.value
+    }
+
     // MARK: - YouTube Import
 
     /// Resolve a YouTube handle or channel URL into a profile preview
@@ -212,16 +236,37 @@ final class APIClient {
         try await get(AppConstants.videoDetail(id))
     }
 
-    func getVideoStreamUrl(_ id: String) -> String {
-        var url = "\(baseURL)\(AppConstants.videoStream(id))"
-        if let token = storage.sessionToken { url += "?token=\(token)" }
-        return url
+    /// Full-quality stream URL, authenticated with a short-lived playback ticket
+    /// (`?ticket=`) rather than the session token, so the long-lived credential
+    /// never lands in a media URL. Throws if a ticket can't be minted; the caller
+    /// should surface that instead of playing an unauthenticated URL the server
+    /// would reject.
+    func getVideoStreamUrl(_ id: String) async throws -> String {
+        let ticket = try await playbackTicket(videoId: id)
+        return "\(baseURL)\(AppConstants.videoStream(id))?ticket=\(encodeQuery(ticket))"
     }
 
-    func getPreviewStreamUrl(_ id: String) -> String {
-        var url = "\(baseURL)\(AppConstants.videoPreviewStream(id))"
-        if let token = storage.sessionToken { url += "?token=\(token)" }
-        return url
+    /// Preview stream URL, ticket-authenticated like `getVideoStreamUrl`.
+    func getPreviewStreamUrl(_ id: String) async throws -> String {
+        let ticket = try await playbackTicket(videoId: id)
+        return "\(baseURL)\(AppConstants.videoPreviewStream(id))?ticket=\(encodeQuery(ticket))"
+    }
+
+    /// Mint (or reuse) a short-lived playback ticket for `videoId`, used as the
+    /// `?ticket=` credential on `/stream` and `/preview-stream`. Cached per video
+    /// until shortly before it expires and bound to the current session, so the
+    /// same video's preview and full-quality streams share one ticket while a
+    /// different video, an expiry, or a profile switch forces a fresh mint.
+    func playbackTicket(videoId: String) async throws -> String {
+        if let cached = playbackTicketCache,
+           cached.videoId == videoId,
+           cached.ticket.isValid(for: storage.sessionToken) {
+            return cached.ticket.value
+        }
+        let response: TicketResponse = try await post(AppConstants.videoPlaybackTicket(videoId))
+        let ticket = CachedTicket(response, sessionToken: storage.sessionToken)
+        playbackTicketCache = (videoId, ticket)
+        return ticket.value
     }
 
     /// Save the user's playback position. Pass `isWatched: true` when the video
@@ -358,6 +403,35 @@ private struct SuggestionsResponse: Decodable {
 
 private struct BulkSubscribeResponse: Decodable {
     let results: [BulkSubscribeResult]
+}
+
+/// A minted stream/WS ticket: `{ticket, expires_in}` (seconds).
+private struct TicketResponse: Decodable {
+    let ticket: String
+    let expiresIn: Int
+}
+
+/// A cached ticket: its value, the instant it should be treated as expired (set
+/// a little before the real expiry so a slow connection can't outlast it), and
+/// the session it was minted for so a profile switch invalidates it.
+private struct CachedTicket {
+    let value: String
+    let expiresAt: Date
+    let sessionToken: String
+
+    /// Retire a ticket this long before its real expiry, so it's never handed to
+    /// a player or socket with only a sliver of life left.
+    private static let safetyMargin: TimeInterval = 15
+
+    init(_ response: TicketResponse, sessionToken: String?) {
+        value = response.ticket
+        expiresAt = Date().addingTimeInterval(max(0, TimeInterval(response.expiresIn) - Self.safetyMargin))
+        self.sessionToken = sessionToken ?? ""
+    }
+
+    func isValid(for sessionToken: String?) -> Bool {
+        (sessionToken ?? "") == self.sessionToken && Date() < expiresAt
+    }
 }
 
 /// The backend's standard error body: a human-readable `detail` and a stable

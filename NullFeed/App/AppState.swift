@@ -36,7 +36,7 @@ final class AppState {
             let profiles = try await api.getProfiles()
             if let user = profiles.first(where: { $0.id == userId }) {
                 currentUser = user
-                connectWebSocket(userId: userId, token: token)
+                connectWebSocket(userId: userId)
             } else {
                 storage.clearSession()
             }
@@ -49,7 +49,7 @@ final class AppState {
         storage.sessionToken = token
         storage.selectedUserId = user.id
         currentUser = user
-        connectWebSocket(userId: user.id, token: token)
+        connectWebSocket(userId: user.id)
     }
 
     func logout() {
@@ -58,8 +58,10 @@ final class AppState {
         currentUser = nil
     }
 
-    private func connectWebSocket(userId: String, token: String) {
+    private func connectWebSocket(userId: String) {
         guard let serverUrl = storage.serverUrl, !serverUrl.isEmpty else { return }
-        webSocket.connect(serverUrl: serverUrl, userId: userId, token: token)
+        // The socket fetches its own short-lived ticket; the session token (read
+        // from storage, already set by login/checkSession) never goes on the URL.
+        webSocket.connect(serverUrl: serverUrl, userId: userId)
     }
 }

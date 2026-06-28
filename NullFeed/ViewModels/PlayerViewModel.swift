@@ -119,22 +119,37 @@ final class PlayerViewModel {
 
         // Path 1: HQ complete -- play directly
         if video.status == .complete {
-            let url = api.getVideoStreamUrl(videoId)
-            await startPlayback(url: url, video: video)
+            do {
+                let url = try await api.getVideoStreamUrl(videoId)
+                await startPlayback(url: url, video: video)
+            } catch {
+                failPlayback(error)
+            }
             return
         }
 
         // Path 2: Preview already ready -- play preview, listen for HQ
         if video.hasPreviewReady {
-            let url = api.getPreviewStreamUrl(videoId)
-            await startPlayback(url: url, video: video, isPreview: true)
-            listenForHqReady()
+            do {
+                let url = try await api.getPreviewStreamUrl(videoId)
+                await startPlayback(url: url, video: video, isPreview: true)
+                listenForHqReady()
+            } catch {
+                failPlayback(error)
+            }
             return
         }
 
         // Path 3: No preview -- request one, listen for it
         try? await api.requestPreview(videoId)
         listenForPreviewReady(video: video)
+    }
+
+    /// Surface a playback-start failure (e.g. a stream ticket couldn't be minted)
+    /// and clear the loading state so the view shows the error instead of hanging.
+    private func failPlayback(_ error: Error) {
+        self.error = "Failed to load video: \(error.localizedDescription)"
+        isLoading = false
     }
 
     private func startPlayback(url: String, video: Video, isPreview: Bool = false) async {
@@ -179,14 +194,22 @@ final class PlayerViewModel {
                 if event.videoId == videoId {
                     if event.type == .previewReady {
                         timeout.cancel()
-                        let url = api.getPreviewStreamUrl(videoId)
-                        await startPlayback(url: url, video: video, isPreview: true)
-                        listenForHqReady()
+                        do {
+                            let url = try await api.getPreviewStreamUrl(videoId)
+                            await startPlayback(url: url, video: video, isPreview: true)
+                            listenForHqReady()
+                        } catch {
+                            failPlayback(error)
+                        }
                         break
                     } else if event.type == .downloadComplete {
                         timeout.cancel()
-                        let url = api.getVideoStreamUrl(videoId)
-                        await startPlayback(url: url, video: video)
+                        do {
+                            let url = try await api.getVideoStreamUrl(videoId)
+                            await startPlayback(url: url, video: video)
+                        } catch {
+                            failPlayback(error)
+                        }
                         break
                     }
                 }
@@ -222,7 +245,14 @@ final class PlayerViewModel {
         let resumeTime = currentItem.currentTime()
         let resumeRate = player.rate
 
-        let url = api.getVideoStreamUrl(videoId)
+        let url: String
+        do {
+            url = try await api.getVideoStreamUrl(videoId)
+        } catch {
+            // Couldn't mint a ticket for the HQ stream; stay on the preview
+            // rather than interrupting playback.
+            return
+        }
         guard let streamUrl = URL(string: url) else { return }
 
         let hqItem = AVPlayerItem(url: streamUrl)
