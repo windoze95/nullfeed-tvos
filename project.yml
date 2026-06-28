@@ -38,6 +38,12 @@ targets:
       - target: NullFeedTopShelf
     entitlements:
       path: NullFeed/NullFeed.entitlements
+      properties:
+        # Push Notifications capability. "production" matches the TestFlight + App
+        # Store APNs environment (the ship path). For a local debug build against
+        # a sandbox gateway, switch to "development" and point the backend's APNs
+        # environment at sandbox so the token environment matches.
+        aps-environment: production
   NullFeedTopShelf:
     type: app-extension
     product: com.apple.product-type.tv-app-extension

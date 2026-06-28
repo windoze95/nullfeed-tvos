@@ -8,6 +8,7 @@ struct RootView: View {
     @State private var authViewModel: AuthViewModel?
 
     var body: some View {
+        @Bindable var appState = appState
         Group {
             if appState.isLoading {
                 LoadingView()
@@ -23,6 +24,12 @@ struct RootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(NullFeedTheme.background)
+        // A notification payload or Top Shelf "play" deep link opens the player
+        // over whatever is showing. Driven by AppState so any surface that wants
+        // to start playback just sets `deepLinkVideo` (only set once authenticated).
+        .fullScreenCover(item: $appState.deepLinkVideo) { video in
+            PlayerView(videoId: video.id)
+        }
         .task {
             if authViewModel == nil {
                 authViewModel = AuthViewModel(storage: storage, api: api, appState: appState)
