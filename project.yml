@@ -16,6 +16,25 @@ targets:
     platform: tvOS
     sources:
       - NullFeed
+      - Shared
+    info:
+      path: NullFeed/Info.plist
+      properties:
+        # Track the version from the build settings instead of XcodeGen's literal
+        # "1.0"/"1" defaults, so it stays correct whether Xcode reads it from this
+        # base file or its generated Info.plist.
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
+        # Register the custom URL scheme so the Top Shelf "play" action
+        # (nullfeed://player/<id>) -- and any other deep link -- launches the app
+        # and reaches NullFeedApp.onOpenURL. Xcode merges this with its generated
+        # Info.plist (GENERATE_INFOPLIST_FILE), which still supplies the scalar
+        # INFOPLIST_KEY_* values below.
+        CFBundleURLTypes:
+          - CFBundleTypeRole: Viewer
+            CFBundleURLName: codes.julian.nullfeed
+            CFBundleURLSchemes:
+              - nullfeed
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: codes.julian.nullfeed
@@ -44,16 +63,25 @@ targets:
         # a sandbox gateway, switch to "development" and point the backend's APNs
         # environment at sandbox so the token environment matches.
         aps-environment: production
+        # Shared container so the Top Shelf extension can read the session the
+        # app mirrors into SharedDefaults. Must match SharedDefaults.appGroup.
+        com.apple.security.application-groups:
+          - group.codes.julian.nullfeed
   NullFeedTopShelf:
     type: app-extension
     product: com.apple.product-type.tv-app-extension
     platform: tvOS
     sources:
       - NullFeedTopShelf
+      - Shared
     info:
       path: NullFeedTopShelf/Info.plist
       properties:
         CFBundleDisplayName: NullFeed TopShelf
+        # Keep the extension's version in lockstep with the app (the App Store
+        # requires they match); otherwise XcodeGen writes literal "1.0"/"1".
+        CFBundleShortVersionString: "$(MARKETING_VERSION)"
+        CFBundleVersion: "$(CURRENT_PROJECT_VERSION)"
         UIRequiredDeviceCapabilities:
           - arm64
         NSExtension:
@@ -73,6 +101,10 @@ targets:
           CODE_SIGN_STYLE: Automatic
     entitlements:
       path: NullFeedTopShelf/NullFeedTopShelf.entitlements
+      properties:
+        # Read side of the same shared container declared on the app target.
+        com.apple.security.application-groups:
+          - group.codes.julian.nullfeed
   NullFeedTests:
     type: bundle.unit-test
     platform: tvOS
