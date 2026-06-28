@@ -7,21 +7,34 @@ final class StorageService {
 
     init() {
         self.defaults = .standard
+        // Backfill the App Group suite on launch so the Top Shelf extension has
+        // the current session even for logins that predate this mirroring -- and
+        // re-sync it if the shared copy ever drifts from `.standard`.
+        syncSharedDefaults()
     }
 
     var serverUrl: String? {
         get { defaults.string(forKey: AppConstants.serverUrlKey) }
-        set { defaults.set(newValue, forKey: AppConstants.serverUrlKey) }
+        set {
+            defaults.set(newValue, forKey: AppConstants.serverUrlKey)
+            syncSharedDefaults()
+        }
     }
 
     var selectedUserId: String? {
         get { defaults.string(forKey: AppConstants.selectedUserIdKey) }
-        set { defaults.set(newValue, forKey: AppConstants.selectedUserIdKey) }
+        set {
+            defaults.set(newValue, forKey: AppConstants.selectedUserIdKey)
+            syncSharedDefaults()
+        }
     }
 
     var sessionToken: String? {
         get { defaults.string(forKey: AppConstants.sessionTokenKey) }
-        set { defaults.set(newValue, forKey: AppConstants.sessionTokenKey) }
+        set {
+            defaults.set(newValue, forKey: AppConstants.sessionTokenKey)
+            syncSharedDefaults()
+        }
     }
 
     var preferredQuality: String {
@@ -44,6 +57,7 @@ final class StorageService {
     func clearSession() {
         defaults.removeObject(forKey: AppConstants.selectedUserIdKey)
         defaults.removeObject(forKey: AppConstants.sessionTokenKey)
+        syncSharedDefaults()
     }
 
     func clearAll() {
@@ -51,5 +65,17 @@ final class StorageService {
         defaults.removeObject(forKey: AppConstants.selectedUserIdKey)
         defaults.removeObject(forKey: AppConstants.sessionTokenKey)
         defaults.removeObject(forKey: AppConstants.preferredQualityKey)
+        syncSharedDefaults()
+    }
+
+    /// Mirror the server + session into the App Group suite after any change, so
+    /// the Top Shelf extension -- which can't read `.standard` -- sees the
+    /// current values. App-only keys (quality, device id) aren't shared.
+    private func syncSharedDefaults() {
+        SharedDefaults.update(
+            serverUrl: serverUrl,
+            sessionToken: sessionToken,
+            selectedUserId: selectedUserId
+        )
     }
 }

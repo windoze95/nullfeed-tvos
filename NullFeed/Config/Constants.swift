@@ -3,12 +3,16 @@ import Foundation
 enum AppConstants {
     static let appName = "NullFeed"
     static let defaultServerPort = "8484"
-    static let appGroup = "group.codes.julian.nullfeed"
+    /// App Group shared with the Top Shelf extension. Single-sourced in
+    /// `SharedDefaults`, which both targets compile.
+    static let appGroup = SharedDefaults.appGroup
 
     // MARK: - Storage Keys
-    static let serverUrlKey = "server_url"
-    static let selectedUserIdKey = "selected_user_id"
-    static let sessionTokenKey = "session_token"
+    // The shared credential keys are defined in `SharedDefaults` so the app and
+    // the Top Shelf extension agree on them; aliased here for `.standard` access.
+    static let serverUrlKey = SharedDefaults.Key.serverUrl
+    static let selectedUserIdKey = SharedDefaults.Key.selectedUserId
+    static let sessionTokenKey = SharedDefaults.Key.sessionToken
     static let preferredQualityKey = "preferred_quality"
     /// Stable per-install id sent with push (de)registration. Generated once and
     /// kept across logins so it always targets the same device record.
