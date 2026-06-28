@@ -14,7 +14,14 @@ struct PlayerView: View {
             Color.black.ignoresSafeArea()
 
             if let vm = viewModel {
-                if vm.isLoading {
+                if let prompt = vm.resumePrompt {
+                    ResumePromptView(
+                        title: prompt.title,
+                        positionSeconds: prompt.positionSeconds,
+                        onResume: { vm.resolveResumePrompt(resume: true) },
+                        onStartOver: { vm.resolveResumePrompt(resume: false) }
+                    )
+                } else if vm.isLoading {
                     ProgressView()
                         .tint(NullFeedTheme.primary)
                 } else if let error = vm.error {

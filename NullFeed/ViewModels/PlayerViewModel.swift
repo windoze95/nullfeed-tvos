@@ -4,10 +4,21 @@ import AVKit
 @MainActor
 @Observable
 final class PlayerViewModel {
+    /// A pending pre-playback resume choice. Non-nil holds playback while the
+    /// view shows a "Resume / Start Over" prompt; `resolveResumePrompt(resume:)`
+    /// clears it and begins playback.
+    struct ResumePrompt: Equatable {
+        let title: String
+        let positionSeconds: Int
+    }
+
     var player: AVPlayer?
     var isPreviewMode = false
     var isLoading = true
     var error: String?
+    /// Set when a video opens with a saved position to return to; the view
+    /// presents the resume choice and playback waits on the viewer.
+    var resumePrompt: ResumePrompt?
 
     private let api: APIClient
     private let webSocket: WebSocketClient
@@ -16,6 +27,9 @@ final class PlayerViewModel {
     private var wsTask: Task<Void, Never>?
     private var videoId: String = ""
     private var video: Video?
+    /// The position (seconds) the current item should begin at: the resume point
+    /// the viewer chose, or 0 to start from the beginning.
+    private var startPositionSeconds = 0
     private var endObserver: NSObjectProtocol?
     /// Set once the item plays to its end so the final "watched" write (which
     /// clears the resume position) can't be clobbered by a trailing progress
@@ -31,11 +45,19 @@ final class PlayerViewModel {
         self.queue = queue
     }
 
-    func loadVideo(id: String) async {
+    /// Load a video and either present a resume choice or begin playback.
+    ///
+    /// `promptForResume` is the explicit-open path (the default): a video with a
+    /// saved position the viewer hasn't finished pauses on a "Resume / Start
+    /// Over" prompt before playing. Auto-advance through the queue passes
+    /// `false`, continuing seamlessly -- resuming any saved position without a
+    /// prompt so a binge isn't interrupted.
+    func loadVideo(id: String, promptForResume: Bool = true) async {
         videoId = id
         isLoading = true
         error = nil
         didReachEnd = false
+        resumePrompt = nil
 
         do {
             let video = try await api.getVideo(id)
@@ -46,28 +68,73 @@ final class PlayerViewModel {
             if Task.isCancelled { isLoading = false; return }
             self.video = video
 
-            // Path 1: HQ complete -- play directly
-            if video.status == .complete {
-                let url = api.getVideoStreamUrl(id)
-                await startPlayback(url: url, video: video)
+            if promptForResume && Self.hasResumePoint(for: video) {
+                // Hand the choice to the viewer; playback resumes in
+                // `resolveResumePrompt(resume:)`.
+                resumePrompt = ResumePrompt(title: video.title, positionSeconds: video.watchPositionSeconds)
+                isLoading = false
                 return
             }
 
-            // Path 2: Preview already ready -- play preview, listen for HQ
-            if video.hasPreviewReady {
-                let url = api.getPreviewStreamUrl(id)
-                await startPlayback(url: url, video: video, isPreview: true)
-                listenForHqReady()
-                return
-            }
-
-            // Path 3: No preview -- request one, listen for it
-            try? await api.requestPreview(id)
-            listenForPreviewReady(video: video)
+            // No prompt: resume a saved position when there is one (e.g. an
+            // auto-advanced item the viewer had partly seen), else start at 0.
+            let start = Self.hasResumePoint(for: video)
+                ? Self.resumeStart(forPosition: video.watchPositionSeconds)
+                : 0
+            await beginPlayback(from: start)
         } catch {
             self.error = "Failed to load video: \(error.localizedDescription)"
             isLoading = false
         }
+    }
+
+    /// Apply the viewer's choice from the resume prompt: resume from the saved
+    /// position (rewound for re-orientation) or start over from the beginning.
+    func resolveResumePrompt(resume: Bool) {
+        guard let prompt = resumePrompt else { return }
+        resumePrompt = nil
+        isLoading = true
+        let start = resume ? Self.resumeStart(forPosition: prompt.positionSeconds) : 0
+        Task { await beginPlayback(from: start) }
+    }
+
+    /// Whether opening `video` should offer a resume choice: it has a saved
+    /// position to return to and isn't already finished (finishing clears the
+    /// position, so a watched video always starts over).
+    static func hasResumePoint(for video: Video) -> Bool {
+        video.watchPositionSeconds > 0 && !video.isWatched
+    }
+
+    /// The playback start for a saved position, rewound a little so the viewer
+    /// re-orients before the cut they left off at. Never negative.
+    static func resumeStart(forPosition seconds: Int) -> Int {
+        max(0, seconds - AppConstants.resumeRewindSeconds)
+    }
+
+    /// Resolve which stream to play -- full quality, a ready preview, or a
+    /// requested-and-awaited preview -- and start it at `startSeconds`.
+    private func beginPlayback(from startSeconds: Int) async {
+        guard let video else { return }
+        startPositionSeconds = startSeconds
+
+        // Path 1: HQ complete -- play directly
+        if video.status == .complete {
+            let url = api.getVideoStreamUrl(videoId)
+            await startPlayback(url: url, video: video)
+            return
+        }
+
+        // Path 2: Preview already ready -- play preview, listen for HQ
+        if video.hasPreviewReady {
+            let url = api.getPreviewStreamUrl(videoId)
+            await startPlayback(url: url, video: video, isPreview: true)
+            listenForHqReady()
+            return
+        }
+
+        // Path 3: No preview -- request one, listen for it
+        try? await api.requestPreview(videoId)
+        listenForPreviewReady(video: video)
     }
 
     private func startPlayback(url: String, video: Video, isPreview: Bool = false) async {
@@ -76,10 +143,10 @@ final class PlayerViewModel {
         applyMetadata(to: playerItem, video: video)
         let avPlayer = AVPlayer(playerItem: playerItem)
 
-        // Resume position (rewind 10s for re-orientation)
-        if video.watchPositionSeconds > 0 {
-            let resumePos = max(0, video.watchPositionSeconds - 10)
-            await avPlayer.seek(to: CMTime(seconds: Double(resumePos), preferredTimescale: 1))
+        // Begin at the position resolved for this item -- the resume point the
+        // viewer chose (already rewound), or 0 to start over / for a fresh video.
+        if startPositionSeconds > 0 {
+            await avPlayer.seek(to: CMTime(seconds: Double(startPositionSeconds), preferredTimescale: 1))
         }
 
         // A cancelled task means the view went away while we were preparing this
@@ -296,7 +363,9 @@ final class PlayerViewModel {
 
         guard let next else { return }
         teardownForNextItem()
-        await loadVideo(id: next.id)
+        // Continue the binge without a prompt; a partly-seen queued item still
+        // resumes from where it was left.
+        await loadVideo(id: next.id, promptForResume: false)
     }
 
     /// Tear down the finished item's player, observers, and timers before the

@@ -49,6 +49,16 @@ struct HomeView: View {
                     QueueView(onPlay: { path.append($0) })
                 }
             }
+            .onChange(of: path.count) { _, newCount in
+                // Returning to the Home root (e.g. exiting the player) reloads the
+                // feed so Continue Watching reflects the position saved on exit,
+                // even if the live progress_updated event was missed (e.g. a brief
+                // WebSocket drop). A reload with content already on screen swaps in
+                // place without a loading flash.
+                if newCount == 0 {
+                    Task { await viewModel?.loadFeed() }
+                }
+            }
         }
         .task {
             if viewModel == nil {
