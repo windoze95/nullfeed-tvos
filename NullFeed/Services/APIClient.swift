@@ -164,8 +164,14 @@ final class APIClient {
         return url
     }
 
-    func updateProgress(videoId: String, positionSeconds: Int) async throws {
-        try await putVoid(AppConstants.videoProgress(videoId), body: ["position_seconds": positionSeconds])
+    /// Save the user's playback position. Pass `isWatched: true` when the video
+    /// has finished so the backend marks it watched; combined with
+    /// `positionSeconds: 0` this also clears the resume position.
+    func updateProgress(videoId: String, positionSeconds: Int, isWatched: Bool = false) async throws {
+        try await putVoid(
+            AppConstants.videoProgress(videoId),
+            body: ["position_seconds": positionSeconds, "is_watched": isWatched]
+        )
     }
 
     func deleteVideo(_ videoId: String) async throws {
