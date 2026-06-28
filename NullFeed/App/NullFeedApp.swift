@@ -6,6 +6,7 @@ struct NullFeedApp: App {
     @State private var api: APIClient
     @State private var webSocket: WebSocketClient
     @State private var appState: AppState
+    @State private var queue: QueueViewModel
 
     init() {
         let storage = StorageService()
@@ -16,6 +17,7 @@ struct NullFeedApp: App {
         _api = State(initialValue: api)
         _webSocket = State(initialValue: webSocket)
         _appState = State(initialValue: appState)
+        _queue = State(initialValue: QueueViewModel(api: api))
     }
 
     var body: some Scene {
@@ -25,6 +27,7 @@ struct NullFeedApp: App {
                 .environment(api)
                 .environment(webSocket)
                 .environment(appState)
+                .environment(queue)
                 .preferredColorScheme(.dark)
                 .onOpenURL { url in
                     handleDeepLink(url)

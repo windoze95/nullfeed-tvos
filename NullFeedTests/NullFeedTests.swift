@@ -429,4 +429,36 @@ final class NullFeedTests: XCTestCase {
         let event = WebSocketEvent.from(json: ["type": "totally_unknown", "data": [:]])
         XCTAssertEqual(event.type, .unknown)
     }
+
+    // MARK: - Queue
+
+    @MainActor
+    func testQueueMembershipAndNextItem() throws {
+        // The pure in-memory logic behind the action-menu labels and the player's
+        // auto-advance: membership and "what plays after this one".
+        let queue = QueueViewModel(api: APIClient(storage: StorageService()))
+        queue.items = try ["q-1", "q-2", "q-3"].map(makeVideo)
+
+        XCTAssertTrue(queue.isQueued("q-2"))
+        XCTAssertFalse(queue.isQueued("missing"))
+
+        XCTAssertEqual(queue.videoAfter("q-1")?.id, "q-2")
+        XCTAssertEqual(queue.videoAfter("q-2")?.id, "q-3")
+        XCTAssertNil(queue.videoAfter("q-3"), "the last item has no successor")
+        XCTAssertNil(queue.videoAfter("missing"), "an unqueued video has no successor")
+    }
+
+    private func makeVideo(id: String) throws -> Video {
+        let json = """
+        {
+            "id": "\(id)",
+            "youtube_video_id": "yt-\(id)",
+            "channel_id": "ch-1",
+            "title": "Video \(id)",
+            "status": "COMPLETE",
+            "channel_name": "Chan"
+        }
+        """.data(using: .utf8)!
+        return try JSONDecoder.nullFeed.decode(Video.self, from: json)
+    }
 }

@@ -5,6 +5,7 @@ struct PlayerView: View {
     let videoId: String
     @Environment(APIClient.self) private var api
     @Environment(WebSocketClient.self) private var webSocket
+    @Environment(QueueViewModel.self) private var queue
     @State private var viewModel: PlayerViewModel?
     @Environment(\.dismiss) private var dismiss
 
@@ -50,7 +51,7 @@ struct PlayerView: View {
             }
         }
         .onAppear {
-            let vm = PlayerViewModel(api: api, webSocket: webSocket)
+            let vm = PlayerViewModel(api: api, webSocket: webSocket, queue: queue)
             viewModel = vm
             Task { await vm.loadVideo(id: videoId) }
         }

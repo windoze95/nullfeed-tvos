@@ -30,6 +30,11 @@ struct HomeView: View {
             .background(NullFeedTheme.background)
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
+                    Button("Up Next") {
+                        path.append(HomeRoute.queue)
+                    }
+                }
+                ToolbarItem(placement: .topBarTrailing) {
                     Button("Refresh") {
                         Task { await viewModel?.refresh() }
                     }
@@ -37,6 +42,12 @@ struct HomeView: View {
             }
             .navigationDestination(for: Video.self) { video in
                 PlayerView(videoId: video.id)
+            }
+            .navigationDestination(for: HomeRoute.self) { route in
+                switch route {
+                case .queue:
+                    QueueView(onPlay: { path.append($0) })
+                }
             }
         }
         .task {
@@ -106,4 +117,9 @@ struct HomeView: View {
             .focusScope(feedFocus)
         }
     }
+}
+
+/// Navigation targets reachable from Home beyond playing a video.
+private enum HomeRoute: Hashable {
+    case queue
 }
