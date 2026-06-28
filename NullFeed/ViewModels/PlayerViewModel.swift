@@ -148,6 +148,9 @@ final class PlayerViewModel {
             let url = try await api.getInstantStreamUrl(videoId)
             await startPlayback(url: url, video: video, isPreview: true)
             listenForHqReady()
+            // Cache the HQ version in the background (evictable, not a library
+            // download) so the player can swap preview -> HQ. Best-effort.
+            Task { [api, videoId] in try? await api.cacheVideo(videoId) }
             return
         } catch {
             // Couldn't mint a ticket / reach the server -- fall back to a preview.

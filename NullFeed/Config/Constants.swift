@@ -54,6 +54,7 @@ enum AppConstants {
     static func videoProgress(_ id: String) -> String { "\(apiBase)/videos/\(id)/progress" }
     static func videoDownload(_ id: String) -> String { "\(apiBase)/videos/\(id)/download" }
     static func videoCancel(_ id: String) -> String { "\(apiBase)/videos/\(id)/cancel" }
+    static func videoCache(_ id: String) -> String { "\(apiBase)/videos/\(id)/cache" }
     static func videoPreview(_ id: String) -> String { "\(apiBase)/videos/\(id)/preview" }
     static func videoPreviewStream(_ id: String) -> String { "\(apiBase)/videos/\(id)/preview-stream" }
     static func videoQueue(_ id: String) -> String { "\(apiBase)/videos/\(id)/queue" }
