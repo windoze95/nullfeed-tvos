@@ -134,6 +134,43 @@ final class NullFeedTests: XCTestCase {
         XCTAssertNil(video.thumbnailUrl)
     }
 
+    func testVideoDescriptionDecoding() throws {
+        // The Now Playing / Info panel surfaces a description when the backend
+        // provides one; it must decode off the top-level `description` key.
+        let json = """
+        {
+            "id": "v-desc",
+            "youtube_video_id": "yt-desc",
+            "channel_id": "ch-1",
+            "title": "Described Video",
+            "status": "COMPLETE",
+            "description": "A detailed summary of the video.",
+            "channel_name": "Chan"
+        }
+        """.data(using: .utf8)!
+
+        let video = try JSONDecoder.nullFeed.decode(Video.self, from: json)
+        XCTAssertEqual(video.description, "A detailed summary of the video.")
+    }
+
+    func testVideoMissingDescriptionDecodesToNil() throws {
+        // Absent description must default to nil, not throw, so the metadata
+        // builder simply omits it.
+        let json = """
+        {
+            "id": "v-no-desc",
+            "youtube_video_id": "yt-y",
+            "channel_id": "ch-1",
+            "title": "No Desc",
+            "status": "COMPLETE",
+            "channel_name": "Chan"
+        }
+        """.data(using: .utf8)!
+
+        let video = try JSONDecoder.nullFeed.decode(Video.self, from: json)
+        XCTAssertNil(video.description)
+    }
+
     // MARK: - Recommendation
 
     func testRecommendationDecoding() throws {

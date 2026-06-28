@@ -14,6 +14,12 @@ final class PlayerViewModel {
     private var progressTimer: Timer?
     private var wsTask: Task<Void, Never>?
     private var videoId: String = ""
+    private var video: Video?
+    private var endObserver: NSObjectProtocol?
+    /// Set once the item plays to its end so the final "watched" write (which
+    /// clears the resume position) can't be clobbered by a trailing progress
+    /// save from the timer or `cleanup()`.
+    private var didReachEnd = false
 
     init(api: APIClient, webSocket: WebSocketClient) {
         self.api = api
@@ -24,9 +30,11 @@ final class PlayerViewModel {
         videoId = id
         isLoading = true
         error = nil
+        didReachEnd = false
 
         do {
             let video = try await api.getVideo(id)
+            self.video = video
 
             // Path 1: HQ complete -- play directly
             if video.status == .complete {
@@ -55,6 +63,7 @@ final class PlayerViewModel {
     private func startPlayback(url: String, video: Video, isPreview: Bool = false) async {
         guard let streamUrl = URL(string: url) else { return }
         let playerItem = AVPlayerItem(url: streamUrl)
+        applyMetadata(to: playerItem, video: video)
         let avPlayer = AVPlayer(playerItem: playerItem)
 
         // Resume position (rewind 10s for re-orientation)
@@ -68,6 +77,7 @@ final class PlayerViewModel {
         isPreviewMode = isPreview
         isLoading = false
 
+        observePlaybackEnd(of: playerItem)
         startProgressTimer()
     }
 
@@ -115,22 +125,139 @@ final class PlayerViewModel {
         }
     }
 
+    /// Upgrade the preview stream to the full-quality stream without a black
+    /// flash. The previous implementation built a brand-new `AVPlayer`, which
+    /// made the SwiftUI player view tear down and rebuild its render surface --
+    /// a visible flash. Here we reuse the *same* `AVPlayer` and only swap its
+    /// current item.
+    ///
+    /// An item only fills its playback buffer once it's attached to a player,
+    /// so we attach the HQ item (the player/render surface is untouched, so no
+    /// flash), seek it to the current playhead, wait until it's likely to play
+    /// through without stalling, then resume at the rate the user was watching.
     private func switchToHq() async {
-        guard let currentPlayer = player else { return }
-        let currentTime = currentPlayer.currentTime()
+        guard let player, let currentItem = player.currentItem, let video else { return }
+        let resumeTime = currentItem.currentTime()
+        let resumeRate = player.rate
 
         let url = api.getVideoStreamUrl(videoId)
         guard let streamUrl = URL(string: url) else { return }
 
-        let newItem = AVPlayerItem(url: streamUrl)
-        let newPlayer = AVPlayer(playerItem: newItem)
-        await newPlayer.seek(to: currentTime)
-        newPlayer.play()
+        let hqItem = AVPlayerItem(url: streamUrl)
+        applyMetadata(to: hqItem, video: video)
 
-        currentPlayer.pause()
-        player = newPlayer
+        // Hold the current frame while the HQ item buffers, then align it to the
+        // preview's playhead so the same moment continues in higher quality.
+        player.pause()
+        player.replaceCurrentItem(with: hqItem)
+        await player.seek(to: resumeTime, toleranceBefore: .zero, toleranceAfter: .zero)
+        await waitUntilReadyToPlayThrough(hqItem)
+
+        // The view may have been torn down (or swapped again) while we waited.
+        guard !Task.isCancelled, self.player === player, player.currentItem === hqItem else { return }
+
+        observePlaybackEnd(of: hqItem)
+        player.rate = resumeRate
         isPreviewMode = false
     }
+
+    /// Suspend until the item is ready and likely to play through without
+    /// stalling (or has failed). Polls `status`/`isPlaybackLikelyToKeepUp`,
+    /// bounded by a timeout so a slow or unavailable stream can't hang the
+    /// upgrade -- the item must be attached to a player for these to advance.
+    private func waitUntilReadyToPlayThrough(_ item: AVPlayerItem) async {
+        let pollInterval = Duration.milliseconds(100)
+        let maxPolls = 200 // ~20s at 100ms per poll
+        var polls = 0
+        while !Task.isCancelled && polls < maxPolls {
+            if item.status == .failed { return }
+            if item.status == .readyToPlay && item.isPlaybackLikelyToKeepUp { return }
+            try? await Task.sleep(for: pollInterval)
+            polls += 1
+        }
+    }
+
+    // MARK: - Now Playing metadata
+
+    /// Populate the item's external metadata so the tvOS Info panel (swipe down
+    /// during playback) shows the title, channel, description, and artwork
+    /// instead of being blank.
+    private func applyMetadata(to item: AVPlayerItem, video: Video) {
+        var metadata: [AVMetadataItem] = [
+            metadataItem(.commonIdentifierTitle, value: video.title as NSString)
+        ]
+        if !video.channelName.isEmpty {
+            metadata.append(metadataItem(.iTunesMetadataTrackSubTitle, value: video.channelName as NSString))
+        }
+        if let description = video.description, !description.isEmpty {
+            metadata.append(metadataItem(.commonIdentifierDescription, value: description as NSString))
+        }
+        item.externalMetadata = metadata
+
+        // Artwork comes from the video thumbnail. Fetch it asynchronously and
+        // append it once available so it never blocks playback from starting.
+        loadArtwork(for: video, into: item)
+    }
+
+    private func metadataItem(_ identifier: AVMetadataIdentifier, value: any NSCopying & NSObjectProtocol) -> AVMetadataItem {
+        let item = AVMutableMetadataItem()
+        item.identifier = identifier
+        item.value = value
+        item.extendedLanguageTag = "und"
+        return item.copy() as! AVMetadataItem
+    }
+
+    private func loadArtwork(for video: Video, into item: AVPlayerItem) {
+        guard let urlString = api.mediaURL(video.thumbnailUrl),
+              let url = URL(string: urlString) else { return }
+        Task { [weak item] in
+            guard let (data, _) = try? await URLSession.shared.data(from: url),
+                  let item else { return }
+            let artwork = AVMutableMetadataItem()
+            artwork.identifier = .commonIdentifierArtwork
+            artwork.value = data as NSData
+            artwork.dataType = kCMMetadataBaseDataType_JPEG as String
+            artwork.extendedLanguageTag = "und"
+            item.externalMetadata += [artwork.copy() as! AVMetadataItem]
+        }
+    }
+
+    // MARK: - Watched state
+
+    /// Watch for the current item reaching its end so we can mark the video
+    /// watched. Re-registered whenever the current item changes (e.g. the HQ
+    /// upgrade swaps it).
+    private func observePlaybackEnd(of item: AVPlayerItem) {
+        if let endObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+        }
+        endObserver = NotificationCenter.default.addObserver(
+            forName: AVPlayerItem.didPlayToEndTimeNotification,
+            object: item,
+            queue: .main
+        ) { [weak self] _ in
+            // Delivered on the main thread (queue: .main); hop onto the
+            // MainActor so we can touch actor-isolated state safely.
+            Task { @MainActor [weak self] in
+                self?.handlePlaybackEnded()
+            }
+        }
+    }
+
+    private func handlePlaybackEnded() {
+        guard !didReachEnd else { return }
+        didReachEnd = true
+        // Stop periodic saves so they can't overwrite the cleared resume below.
+        progressTimer?.invalidate()
+        progressTimer = nil
+        // Mark watched and clear the resume position (position 0) so the video
+        // drops out of Continue Watching and restarts from the beginning.
+        Task { [api, videoId] in
+            try? await api.updateProgress(videoId: videoId, positionSeconds: 0, isWatched: true)
+        }
+    }
+
+    // MARK: - Progress
 
     private func startProgressTimer() {
         progressTimer?.invalidate()
@@ -145,6 +272,7 @@ final class PlayerViewModel {
     }
 
     func saveProgress() {
+        guard !didReachEnd else { return }
         guard let player, player.currentItem != nil else { return }
         let position = Int(player.currentTime().seconds)
         guard position > 0 else { return }
@@ -159,6 +287,10 @@ final class PlayerViewModel {
         progressTimer = nil
         wsTask?.cancel()
         wsTask = nil
+        if let endObserver {
+            NotificationCenter.default.removeObserver(endObserver)
+            self.endObserver = nil
+        }
         player?.pause()
         player = nil
     }
