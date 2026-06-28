@@ -54,16 +54,19 @@ struct HomeView: View {
             if viewModel == nil {
                 viewModel = HomeViewModel(api: api)
             }
-            await viewModel?.loadFeed()
+            await viewModel?.load()
         }
         .task {
-            // Refresh the feeds when content changes server-side -- a download
-            // finishes, a preview becomes ready, a new episode arrives, or watch
-            // progress changes -- so the rows stay current without a manual reload.
+            // Refresh content when it changes server-side -- a download finishes,
+            // a preview becomes ready, a new episode arrives, watch progress
+            // changes, or fresh recommendations are computed -- so the rows stay
+            // current without a manual reload.
             for await event in webSocket.subscribe() {
                 switch event.type {
                 case .downloadComplete, .previewReady, .newEpisode, .progressUpdated:
                     await viewModel?.loadFeed()
+                case .recommendationReady:
+                    await viewModel?.loadRecommendations()
                 default:
                     break
                 }
@@ -77,6 +80,7 @@ struct HomeView: View {
         let firstFocusID = viewModel.continueWatching.first?.id
             ?? viewModel.newEpisodes.first?.id
             ?? viewModel.recentlyAdded.first?.id
+            ?? viewModel.recommendations.first?.id
 
         ScrollView(.vertical, showsIndicators: false) {
             VStack(alignment: .leading, spacing: 40) {
@@ -109,6 +113,33 @@ struct HomeView: View {
                                 path.append(item.video)
                             }
                             .prefersDefaultFocus(item.id == firstFocusID, in: feedFocus)
+                        }
+                    }
+                }
+
+                // The same recommendations shown on the Discover tab, surfaced
+                // here as a discovery rail. Omitted entirely when there are none.
+                if !viewModel.recommendations.isEmpty {
+                    ContentRowView(title: "Recommended for You") {
+                        ForEach(viewModel.recommendations) { rec in
+                            RecommendationCardView(
+                                recommendation: rec,
+                                onSubscribe: {
+                                    if let ytId = rec.youtubeChannelId {
+                                        Task {
+                                            try? await api.subscribeToChannel(
+                                                url: "https://youtube.com/channel/\(ytId)"
+                                            )
+                                            await viewModel.dismissRecommendation(rec.id)
+                                        }
+                                    }
+                                },
+                                onDismiss: {
+                                    Task { await viewModel.dismissRecommendation(rec.id) }
+                                }
+                            )
+                            .frame(width: AppConstants.channelCardWidth)
+                            .prefersDefaultFocus(rec.id == firstFocusID, in: feedFocus)
                         }
                     }
                 }
