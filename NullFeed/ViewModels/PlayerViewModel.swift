@@ -140,7 +140,20 @@ final class PlayerViewModel {
             return
         }
 
-        // Path 3: No preview -- request one, listen for it
+        // Path 3: Not downloaded yet -- start instantly by proxying a
+        // progressive source stream, then listen for an HQ download to swap in
+        // if one lands. This replaces waiting for a preview file to be generated
+        // on a cold press; the preview path below stays as a fallback.
+        do {
+            let url = try await api.getInstantStreamUrl(videoId)
+            await startPlayback(url: url, video: video, isPreview: true)
+            listenForHqReady()
+            return
+        } catch {
+            // Couldn't mint a ticket / reach the server -- fall back to a preview.
+        }
+
+        // Fallback: request a preview and wait for it.
         try? await api.requestPreview(videoId)
         listenForPreviewReady(video: video)
     }

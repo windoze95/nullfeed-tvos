@@ -254,6 +254,14 @@ final class APIClient {
         return "\(baseURL)\(AppConstants.videoPreviewStream(id))?ticket=\(encodeQuery(ticket))"
     }
 
+    /// Instant-start stream URL, ticket-authenticated like `getVideoStreamUrl`.
+    /// The backend resolves and reverse-proxies a progressive source so a
+    /// not-yet-downloaded video plays immediately on a cold press.
+    func getInstantStreamUrl(_ id: String) async throws -> String {
+        let ticket = try await playbackTicket(videoId: id)
+        return "\(baseURL)\(AppConstants.videoInstantStream(id))?ticket=\(encodeQuery(ticket))"
+    }
+
     /// Mint (or reuse) a short-lived playback ticket for `videoId`, used as the
     /// `?ticket=` credential on `/stream` and `/preview-stream`. Cached per video
     /// until shortly before it expires and bound to the current session, so the

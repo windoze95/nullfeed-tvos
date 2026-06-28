@@ -49,6 +49,7 @@ enum AppConstants {
     static func channelUnsubscribe(_ id: String) -> String { "\(apiBase)/channels/\(id)/unsubscribe" }
     static func videoDetail(_ id: String) -> String { "\(apiBase)/videos/\(id)" }
     static func videoStream(_ id: String) -> String { "\(apiBase)/videos/\(id)/stream" }
+    static func videoInstantStream(_ id: String) -> String { "\(apiBase)/videos/\(id)/instant-stream" }
     static func videoPlaybackTicket(_ id: String) -> String { "\(apiBase)/videos/\(id)/playback-ticket" }
     static func videoProgress(_ id: String) -> String { "\(apiBase)/videos/\(id)/progress" }
     static func videoDownload(_ id: String) -> String { "\(apiBase)/videos/\(id)/download" }
