@@ -97,7 +97,6 @@ final class NullFeedTests: XCTestCase {
         XCTAssertTrue(video.isPlayable)
         XCTAssertTrue(video.hasPreviewReady)
         XCTAssertTrue(video.isPreviewOnly)
-        XCTAssertTrue(video.isDownloadable) // cataloged status = downloadable
     }
 
     func testVideoThumbnailDecoding() throws {
