@@ -248,6 +248,13 @@ final class APIClient {
         return "\(baseURL)\(AppConstants.videoStream(id))?ticket=\(encodeQuery(ticket))"
     }
 
+    /// Detected sponsor/ad segments (seconds) for client-side skipping. Empty
+    /// when detection is still pending or finds none.
+    func getAdSegments(_ id: String) async throws -> [AdSegment] {
+        let response: AdSegmentsResponse = try await get(AppConstants.videoAdSegments(id))
+        return response.segments
+    }
+
     /// Preview stream URL, ticket-authenticated like `getVideoStreamUrl`.
     func getPreviewStreamUrl(_ id: String) async throws -> String {
         let ticket = try await playbackTicket(videoId: id)

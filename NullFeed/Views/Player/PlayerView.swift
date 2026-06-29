@@ -54,6 +54,20 @@ struct PlayerView: View {
                             Spacer()
                         }
                     }
+
+                    // Sponsor-skip toast
+                    if vm.showSkipToast {
+                        VStack {
+                            Spacer()
+                            Text("Skipped sponsor")
+                                .font(NullFeedTheme.caption)
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background(.black.opacity(0.8), in: Capsule())
+                                .padding(.bottom, 80)
+                        }
+                    }
                 }
             }
         }

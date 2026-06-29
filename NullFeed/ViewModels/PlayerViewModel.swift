@@ -14,6 +14,9 @@ final class PlayerViewModel {
 
     var player: AVPlayer?
     var isPreviewMode = false
+    /// Briefly true after auto-skipping a sponsor segment, so the view can show
+    /// a "Skipped sponsor" toast.
+    var showSkipToast = false
     var isLoading = true
     var error: String?
     /// Set when a video opens with a saved position to return to; the view
@@ -38,6 +41,12 @@ final class PlayerViewModel {
     /// The in-flight auto-advance, cancelled by `cleanup()` so a manual exit
     /// taken while the next item is being fetched can't start ghost playback.
     private var advanceTask: Task<Void, Never>?
+    /// Detected sponsor segments; the playhead seeks past any it enters.
+    private var adSegments: [AdSegment] = []
+    /// Token for the periodic time observer that drives ad skipping; removed in
+    /// teardown/cleanup before the player is released.
+    private var adSkipObserver: Any?
+    private var skipToastTask: Task<Void, Never>?
 
     init(api: APIClient, webSocket: WebSocketClient, queue: QueueViewModel) {
         self.api = api
@@ -192,6 +201,62 @@ final class PlayerViewModel {
 
         observePlaybackEnd(of: playerItem)
         startProgressTimer()
+        addAdSkipObserver(to: avPlayer)
+        loadAdSegments()
+    }
+
+    // MARK: - Sponsor skipping
+
+    /// Best-effort: load detected sponsor segments for the current video.
+    private func loadAdSegments() {
+        let videoId = self.videoId
+        Task { @MainActor [weak self, api] in
+            let segments = (try? await api.getAdSegments(videoId)) ?? []
+            self?.adSegments = segments
+        }
+    }
+
+    /// Observe playback time and seek past any sponsor segment the playhead
+    /// enters. Added once to the AVPlayer; it survives the preview->HQ item swap
+    /// (switchToHq reuses the same player), and is removed in teardown/cleanup.
+    private func addAdSkipObserver(to player: AVPlayer) {
+        removeAdSkipObserver()
+        let interval = CMTime(seconds: 0.5, preferredTimescale: CMTimeScale(NSEC_PER_SEC))
+        adSkipObserver = player.addPeriodicTimeObserver(
+            forInterval: interval, queue: .main
+        ) { [weak self] time in
+            let seconds = time.seconds
+            Task { @MainActor [weak self] in
+                self?.maybeSkipAd(at: seconds)
+            }
+        }
+    }
+
+    private func removeAdSkipObserver() {
+        if let token = adSkipObserver {
+            player?.removeTimeObserver(token)
+            adSkipObserver = nil
+        }
+    }
+
+    private func maybeSkipAd(at positionSeconds: Double) {
+        guard let player, !adSegments.isEmpty, positionSeconds.isFinite else { return }
+        // The 0.5s tail margin stops a seek to a segment's end from re-triggering.
+        for segment in adSegments
+        where positionSeconds >= segment.start && positionSeconds < segment.end - 0.5 {
+            player.seek(to: CMTime(seconds: segment.end, preferredTimescale: 1))
+            flashSkipToast()
+            break
+        }
+    }
+
+    private func flashSkipToast() {
+        showSkipToast = true
+        skipToastTask?.cancel()
+        skipToastTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            self?.showSkipToast = false
+        }
     }
 
     private func listenForPreviewReady(video: Video) {
@@ -425,6 +490,8 @@ final class PlayerViewModel {
         }
         progressTimer?.invalidate()
         progressTimer = nil
+        removeAdSkipObserver()
+        skipToastTask?.cancel()
         player?.pause()
         player = nil
     }
@@ -467,6 +534,8 @@ final class PlayerViewModel {
             NotificationCenter.default.removeObserver(endObserver)
             self.endObserver = nil
         }
+        removeAdSkipObserver()
+        skipToastTask?.cancel()
         player?.pause()
         player = nil
     }
