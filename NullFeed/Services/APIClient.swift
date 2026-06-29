@@ -297,6 +297,14 @@ final class APIClient {
         try await postVoid(AppConstants.videoDownload(videoId))
     }
 
+    /// Records an evictable cache claim and (server-side) kicks off the HQ
+    /// download, hidden from the Downloads tab. Called when the user starts
+    /// instant playback of a not-yet-downloaded video so the player can swap up
+    /// to HQ. Best-effort and idempotent.
+    func cacheVideo(_ videoId: String) async throws {
+        try await postVoid(AppConstants.videoCache(videoId))
+    }
+
     func cancelDownload(_ videoId: String) async throws {
         try await postVoid(AppConstants.videoCancel(videoId))
     }
