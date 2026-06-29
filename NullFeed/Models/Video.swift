@@ -64,14 +64,6 @@ extension Video {
         previewStatus == "READY" && status != .complete
     }
 
-    var isDownloadable: Bool {
-        status == .cataloged || status == .failed
-    }
-
-    var isInProgress: Bool {
-        status == .pending || status == .downloading
-    }
-
     var watchProgress: Double {
         guard durationSeconds > 0 else { return 0 }
         return Double(watchPositionSeconds) / Double(durationSeconds)

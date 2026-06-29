@@ -3,10 +3,8 @@ import SwiftUI
 struct ChannelDetailView: View {
     let channelId: String
     @Environment(APIClient.self) private var api
-    @Environment(WebSocketClient.self) private var webSocket
     @Environment(QueueViewModel.self) private var queue
     @State private var viewModel: ChannelDetailViewModel?
-    @State private var actionSheetVideo: Video?
     @Namespace private var listFocus
 
     var body: some View {
@@ -33,8 +31,8 @@ struct ChannelDetailView: View {
             }
         }
         .navigationDestination(for: Video.self) { video in
-            // Only playable videos navigate here now; non-playable rows open the
-            // actions sheet instead of pushing a blank player (issue #16).
+            // Every episode plays on selection — a not-yet-cached one starts via
+            // instant-stream (the player handles it).
             PlayerView(videoId: video.id)
         }
         .onAppear {
@@ -44,14 +42,6 @@ struct ChannelDetailView: View {
             Task { await viewModel?.load(channelId: channelId) }
             // Seed queue membership so the rows show Add vs Remove correctly.
             Task { await queue.ensureLoaded() }
-        }
-        .task {
-            // Mirror live download progress onto the rows: advance the bar as
-            // `download_progress` events arrive and flip a row to playable once
-            // its download completes.
-            for await event in webSocket.subscribe() {
-                await viewModel?.handle(event)
-            }
         }
     }
 
@@ -89,7 +79,7 @@ struct ChannelDetailView: View {
                     EmptyStateView(
                         iconName: "play.rectangle",
                         title: "No Videos",
-                        subtitle: "Videos will appear here once downloaded"
+                        subtitle: "Videos will appear here"
                     )
                     .frame(maxWidth: .infinity)
                     .padding(.top, 60)
@@ -107,57 +97,19 @@ struct ChannelDetailView: View {
                 }
             }
         }
-        .sheet(item: $actionSheetVideo) { video in
-            VideoActionsSheet(
-                video: video,
-                thumbnailURL: api.mediaURL(video.thumbnailUrl),
-                isQueued: queue.isQueued(video.id),
-                onAddToQueue: { Task { await queue.add(video) } },
-                onRemoveFromQueue: { Task { await queue.remove(video.id) } },
-                onDownload: { Task { await vm.downloadVideo(video.id) } },
-                onCancel: { Task { await vm.cancelDownload(video.id) } },
-                onDelete: { Task { await vm.deleteVideo(video.id) } }
-            )
-        }
     }
 
-    /// A playable video plays on selection (unchanged); a non-playable one opens
-    /// the actions sheet instead of pushing a blank player.
+    /// Every episode plays on selection — a not-yet-cached one starts via
+    /// instant-stream. Caching is invisible, so there's no separate
+    /// download/actions path.
     @ViewBuilder
     private func videoRow(vm: ChannelDetailViewModel, video: Video) -> some View {
-        let row = VideoListRowView(video: video, downloadProgress: vm.downloadProgress[video.id])
-        if video.isPlayable {
-            NavigationLink(value: video) { row }
-        } else {
-            Button { actionSheetVideo = video } label: { row }
-        }
+        NavigationLink(value: video) { VideoListRowView(video: video) }
     }
 
-    /// Long-press menu mirroring the sheet's status-appropriate actions, so even
-    /// playable rows can be downloaded (HQ upgrade) or deleted from the couch.
+    /// Long-press menu: watch-later only (caching is automatic/invisible).
     @ViewBuilder
     private func actionMenu(vm: ChannelDetailViewModel, video: Video) -> some View {
-        if video.isDownloadable {
-            Button {
-                Task { await vm.downloadVideo(video.id) }
-            } label: {
-                Label(video.status == .failed ? "Retry Download" : "Download", systemImage: "arrow.down.circle")
-            }
-        }
-        if video.isInProgress {
-            Button(role: .destructive) {
-                Task { await vm.cancelDownload(video.id) }
-            } label: {
-                Label("Cancel Download", systemImage: "xmark.circle")
-            }
-        }
-        if video.status == .complete {
-            Button(role: .destructive) {
-                Task { await vm.deleteVideo(video.id) }
-            } label: {
-                Label("Delete Download", systemImage: "trash")
-            }
-        }
         if queue.isQueued(video.id) {
             Button(role: .destructive) {
                 Task { await queue.remove(video.id) }
