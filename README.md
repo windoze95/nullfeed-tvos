@@ -14,7 +14,7 @@ Think Netflix, but for your YouTube subscriptions -- channel-centric navigation,
 
 ## Features
 
-- **Instant Playback with Progressive Quality** -- Start watching immediately, even before a video finishes downloading to the server. The app begins playback with a low-quality stream, then seamlessly upgrades to the full-quality version once it's ready -- no buffering, no interruption.
+- **Instant Playback with Progressive Quality** -- Select any episode and it starts immediately, even one that isn't cached on the server yet. Playback begins on a fast progressive stream, then seamlessly upgrades to the full-quality version once it's ready -- no buffering, no interruption.
 - **Channel-Centric Navigation** -- Browse your subscriptions like shows in a streaming app, with channel art, banners, and episode lists.
 - **Resume-Aware Home Screen** -- Continue Watching, New Episodes, and Recently Added rows keep you up to date.
 - **Top Shelf Integration** -- Continue Watching items surface on the tvOS home screen, so you can jump back into a video without opening the app.
@@ -22,7 +22,9 @@ Think Netflix, but for your YouTube subscriptions -- channel-centric navigation,
 - **Focus-Optimized UI** -- Designed for the 10-foot display with focus states, smooth animations, and Siri Remote navigation.
 - **Multi-User Profiles** -- Profile picker with independent subscriptions, watch history, and recommendations per user.
 - **AI-Powered Discover Tab** -- Claude-powered channel and video suggestions based on your subscription graph.
-- **Real-Time Download Tracking** -- WebSocket-driven progress indicators for active downloads.
+- **Invisible Caching** -- No downloads to manage. Following a channel quietly caches its episodes in the background, and any episode plays the moment you select it.
+- **Sponsor-Skip** -- Automatically detects and skips sponsor/ad reads during playback (SponsorBlock + AI), with a brief "Skipped sponsor" note.
+- **Watch-Later Queue** -- Queue up videos and play them back-to-back.
 - **Dark Theme** -- Media-center-class dark UI built for the big screen.
 
 ---
@@ -111,7 +113,7 @@ All backend communication uses `URLSession` with async/await. A generic request 
 
 ### Real-Time Events -- WebSocket
 
-A persistent `URLSessionWebSocketTask` connection provides real-time updates with auto-reconnect. Event types include download progress, download complete, preview ready, new episode, and recommendation ready.
+A persistent `URLSessionWebSocketTask` connection provides real-time updates with auto-reconnect. Event types include cache/download completion, preview ready, sponsor segments ready, new episode, and recommendation ready.
 
 ### Data Models -- Codable
 
