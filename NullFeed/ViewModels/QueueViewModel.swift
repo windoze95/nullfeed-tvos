@@ -54,10 +54,22 @@ final class QueueViewModel {
             total = page.total
             nextCursor = page.nextCursor
             hasLoaded = true
+            prewarmPreviews(for: items)
         } catch {
             self.error = error.localizedDescription
         }
         isLoading = false
+    }
+
+    /// Best-effort: pre-generate previews for queued videos that aren't already
+    /// playable, so opening one from the queue lands on the ready-preview fast
+    /// path instead of the cold instant-stream path.
+    private func prewarmPreviews(for videos: [Video]) {
+        let ids = videos.filter { !$0.isPlayable }
+            .prefix(AppConstants.prewarmBatchSize)
+            .map(\.id)
+        guard !ids.isEmpty else { return }
+        Task { [api] in try? await api.prewarmPreviews(Array(ids)) }
     }
 
     /// Load the first page once, for callers that only need membership (e.g. the
