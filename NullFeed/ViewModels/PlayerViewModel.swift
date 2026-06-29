@@ -47,6 +47,9 @@ final class PlayerViewModel {
     /// teardown/cleanup before the player is released.
     private var adSkipObserver: Any?
     private var skipToastTask: Task<Void, Never>?
+    /// Listens for the ad_segments_ready WS event so the first play applies
+    /// segments that finished detecting after playback began.
+    private var adSegmentsTask: Task<Void, Never>?
 
     init(api: APIClient, webSocket: WebSocketClient, queue: QueueViewModel) {
         self.api = api
@@ -212,7 +215,24 @@ final class PlayerViewModel {
         let videoId = self.videoId
         Task { @MainActor [weak self, api] in
             let segments = (try? await api.getAdSegments(videoId)) ?? []
-            self?.adSegments = segments
+            guard let self else { return }
+            self.adSegments = segments
+            // None yet means detection is still running (first play); apply them
+            // when the backend signals they're ready.
+            if segments.isEmpty { self.listenForAdSegmentsReady() }
+        }
+    }
+
+    private func listenForAdSegmentsReady() {
+        adSegmentsTask?.cancel()
+        adSegmentsTask = Task {
+            for await event in webSocket.subscribe() {
+                guard !Task.isCancelled else { break }
+                if event.type == .adSegmentsReady && event.videoId == videoId {
+                    adSegments = (try? await api.getAdSegments(videoId)) ?? []
+                    break
+                }
+            }
         }
     }
 
@@ -492,6 +512,7 @@ final class PlayerViewModel {
         progressTimer = nil
         removeAdSkipObserver()
         skipToastTask?.cancel()
+        adSegmentsTask?.cancel()
         player?.pause()
         player = nil
     }
@@ -536,6 +557,7 @@ final class PlayerViewModel {
         }
         removeAdSkipObserver()
         skipToastTask?.cancel()
+        adSegmentsTask?.cancel()
         player?.pause()
         player = nil
     }
