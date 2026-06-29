@@ -313,6 +313,14 @@ final class APIClient {
         try await postVoid(AppConstants.videoPreview(videoId))
     }
 
+    /// Pre-generate 360p previews for videos the user is likely to play next, so
+    /// a later tap lands on the ready-preview fast path instead of the cold
+    /// instant-stream path. Best-effort; the backend dedupes and caps the batch.
+    func prewarmPreviews(_ videoIds: [String]) async throws {
+        guard !videoIds.isEmpty else { return }
+        try await postVoid(AppConstants.videosPrewarm, body: ["video_ids": videoIds])
+    }
+
     func getActiveDownloads() async throws -> [Video] {
         try await get(AppConstants.activeDownloads)
     }

@@ -32,6 +32,7 @@ enum AppConstants {
     static let youtubeResolve = "\(apiBase)/youtube/resolve"
     static let youtubeSuggestions = "\(apiBase)/youtube/suggestions"
     static let activeDownloads = "\(apiBase)/videos/downloads"
+    static let videosPrewarm = "\(apiBase)/videos/prewarm"
     static let feedHome = "\(apiBase)/feed/home"
     static let feedContinueWatching = "\(apiBase)/feed/continue-watching"
     static let feedNewEpisodes = "\(apiBase)/feed/new-episodes"
@@ -76,6 +77,8 @@ enum AppConstants {
 
     // MARK: - UI
     static let cardAspectRatio: CGFloat = 16.0 / 9.0
+    // Max videos one /prewarm call asks the backend to pre-generate previews for.
+    static let prewarmBatchSize = 12
     static let videoCardWidth: CGFloat = 400
     static let channelCardWidth: CGFloat = 360
     static let contentRowHeight: CGFloat = 300
