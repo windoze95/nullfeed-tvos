@@ -24,6 +24,26 @@ struct PlayerView: View {
                 } else if vm.isLoading {
                     ProgressView()
                         .tint(NullFeedTheme.primary)
+                } else if let reason = vm.blockedReason {
+                    // Why YouTube refuses this video, with an escape hatch —
+                    // a successful "Try Anyway" clears the label server-side.
+                    VStack(spacing: 20) {
+                        Image(systemName: reason.symbolName)
+                            .font(.system(size: 48))
+                            .foregroundStyle(reason.accentColor)
+                        Text(reason.label)
+                            .font(NullFeedTheme.titleMedium)
+                            .foregroundStyle(NullFeedTheme.textPrimary)
+                        Text(reason.message)
+                            .font(NullFeedTheme.bodyMedium)
+                            .foregroundStyle(NullFeedTheme.textSecondary)
+                            .multilineTextAlignment(.center)
+                            .frame(maxWidth: 800)
+                        Button("Try Anyway") {
+                            vm.tryAnyway()
+                        }
+                        .padding(.top, 8)
+                    }
                 } else if let error = vm.error {
                     VStack(spacing: 20) {
                         Image(systemName: "exclamationmark.triangle")

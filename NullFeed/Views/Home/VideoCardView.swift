@@ -55,6 +55,14 @@ struct VideoCardView: View {
                     .padding(8)
             }
 
+            // Why this video can't play (age-restricted, members-only, …) —
+            // hidden once a local file makes it playable anyway.
+            if let reason = video.activeUnplayableReason {
+                UnplayableBadgeView(reason: reason)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+
             if video.watchProgress > 0 {
                 VStack {
                     Spacer()

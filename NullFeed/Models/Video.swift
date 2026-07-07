@@ -21,6 +21,9 @@ struct Video: Codable, Identifiable, Hashable, Sendable {
     var watchPositionSeconds: Int
     var isWatched: Bool
     let previewStatus: String?
+    /// Why YouTube refuses this video (raw wire value, see UnplayableReason);
+    /// nil = playable as far as the server knows.
+    let unplayableReason: String?
     let thumbnailUrl: String?
     let description: String?
     var channelName: String
@@ -39,6 +42,7 @@ struct Video: Codable, Identifiable, Hashable, Sendable {
         watchPositionSeconds = try c.decodeIfPresent(Int.self, forKey: .watchPositionSeconds) ?? 0
         isWatched = try c.decodeIfPresent(Bool.self, forKey: .isWatched) ?? false
         previewStatus = try c.decodeIfPresent(String.self, forKey: .previewStatus)
+        unplayableReason = try c.decodeIfPresent(String.self, forKey: .unplayableReason)
         thumbnailUrl = try c.decodeIfPresent(String.self, forKey: .thumbnailUrl)
         description = try c.decodeIfPresent(String.self, forKey: .description)
         channelName = try c.decodeIfPresent(String.self, forKey: .channelName) ?? ""
@@ -47,13 +51,22 @@ struct Video: Codable, Identifiable, Hashable, Sendable {
     private enum CodingKeys: String, CodingKey {
         case id, youtubeVideoId, channelId, title, durationSeconds
         case uploadedAt, filePath, fileSizeBytes, status
-        case watchPositionSeconds, isWatched, previewStatus, thumbnailUrl, description, channelName
+        case watchPositionSeconds, isWatched, previewStatus, unplayableReason
+        case thumbnailUrl, description, channelName
     }
 }
 
 extension Video {
     var isPlayable: Bool {
         status == .complete || previewStatus == "READY"
+    }
+
+    /// The unplayable reason worth showing. A video the server already holds a
+    /// playable file for (HQ or preview) plays regardless of a stale label, so
+    /// no banner.
+    var activeUnplayableReason: UnplayableReason? {
+        guard !isPlayable, let raw = unplayableReason else { return nil }
+        return UnplayableReason(wireValue: raw)
     }
 
     var hasPreviewReady: Bool {
