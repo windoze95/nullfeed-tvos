@@ -75,6 +75,11 @@ enum AppConstants {
     /// How far to rewind from a saved position when resuming, so the viewer
     /// re-orients on a few seconds of context before the cut they left off at.
     static let resumeRewindSeconds = 10
+    /// While playing a preview and waiting for the HQ download, how often to
+    /// poll the video's status as a WebSocket fallback — the download_complete
+    /// event fires exactly once, so a dropped connection would otherwise leave
+    /// the player on the preview for the whole session.
+    static let hqPollIntervalSeconds = 20
 
     // MARK: - UI
     static let cardAspectRatio: CGFloat = 16.0 / 9.0

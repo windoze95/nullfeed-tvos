@@ -32,6 +32,12 @@ final class PlayerViewModel {
     private let queue: QueueViewModel
     private var progressTimer: Timer?
     private var wsTask: Task<Void, Never>?
+    /// Slow status-poll fallback for the preview -> HQ swap, in case the
+    /// one-shot download_complete WS event is missed (drop/reconnect).
+    private var hqPollTask: Task<Void, Never>?
+    /// Guards against the WS event and the poll fallback racing into
+    /// concurrent HQ swaps.
+    private var switchingToHq = false
     private var videoId: String = ""
     private var video: Video?
     /// Set by "Try Anyway": skip the blockedReason gate for this screen so a
@@ -172,9 +178,13 @@ final class PlayerViewModel {
             return
         }
 
-        // Path 2: Preview already ready -- play preview, listen for HQ
+        // Path 2: Preview already ready -- play preview, listen for HQ. A
+        // warmed preview (prewarm) means nothing has enqueued the HQ download
+        // yet, so request it -- without this the HQ listener waits forever.
+        // Idempotent and best-effort, like the instant-stream path below.
         if video.hasPreviewReady {
             do {
+                Task { [api, videoId] in try? await api.cacheVideo(videoId) }
                 let url = try await api.getPreviewStreamUrl(videoId)
                 await startPlayback(url: url, video: video, isPreview: true)
                 listenForHqReady()
@@ -369,6 +379,10 @@ final class PlayerViewModel {
                     if event.type == .previewReady {
                         timeout.cancel()
                         do {
+                            // The preview request alone never enqueues the HQ
+                            // download -- ask for it here so the swap the HQ
+                            // listener waits for can actually happen.
+                            Task { [api, videoId] in try? await api.cacheVideo(videoId) }
                             let url = try await api.getPreviewStreamUrl(videoId)
                             await startPlayback(url: url, video: video, isPreview: true)
                             listenForHqReady()
@@ -402,6 +416,20 @@ final class PlayerViewModel {
                 }
             }
         }
+
+        // The download_complete event fires exactly once; a WS drop/reconnect
+        // at the wrong moment would leave the preview playing for the whole
+        // session. Poll slowly as a safety net.
+        hqPollTask?.cancel()
+        hqPollTask = Task {
+            while !Task.isCancelled && isPreviewMode {
+                try? await Task.sleep(for: .seconds(AppConstants.hqPollIntervalSeconds))
+                guard !Task.isCancelled && isPreviewMode else { break }
+                guard let latest = try? await api.getVideo(videoId),
+                      latest.status == .complete else { continue }
+                await switchToHq()
+            }
+        }
     }
 
     /// Upgrade the preview stream to the full-quality stream without a black
@@ -415,7 +443,10 @@ final class PlayerViewModel {
     /// flash), seek it to the current playhead, wait until it's likely to play
     /// through without stalling, then resume at the rate the user was watching.
     private func switchToHq() async {
+        guard !switchingToHq, isPreviewMode else { return }
         guard let player, let currentItem = player.currentItem, let video else { return }
+        switchingToHq = true
+        defer { switchingToHq = false }
         let resumeTime = currentItem.currentTime()
         let resumeRate = player.rate
 
@@ -577,6 +608,8 @@ final class PlayerViewModel {
     private func teardownForNextItem() {
         wsTask?.cancel()
         wsTask = nil
+        hqPollTask?.cancel()
+        hqPollTask = nil
         itemFailureTask?.cancel()
         itemFailureTask = nil
         if let endObserver {
@@ -626,6 +659,8 @@ final class PlayerViewModel {
         progressTimer = nil
         wsTask?.cancel()
         wsTask = nil
+        hqPollTask?.cancel()
+        hqPollTask = nil
         itemFailureTask?.cancel()
         itemFailureTask = nil
         if let endObserver {
