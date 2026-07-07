@@ -19,6 +19,10 @@ final class PlayerViewModel {
     var showSkipToast = false
     var isLoading = true
     var error: String?
+    /// Why this video can't play (age-restricted, members-only, …), when the
+    /// server has it labeled. The view shows an explanatory screen with a
+    /// "Try Anyway" escape hatch instead of a doomed stream attempt.
+    var blockedReason: UnplayableReason?
     /// Set when a video opens with a saved position to return to; the view
     /// presents the resume choice and playback waits on the viewer.
     var resumePrompt: ResumePrompt?
@@ -30,6 +34,13 @@ final class PlayerViewModel {
     private var wsTask: Task<Void, Never>?
     private var videoId: String = ""
     private var video: Video?
+    /// Set by "Try Anyway": skip the blockedReason gate for this screen so a
+    /// stale label can heal (the backend clears it on a successful resolve).
+    private var ignoreUnplayableGate = false
+    /// Bounded watcher for the freshly attached item; surfaces a load failure
+    /// (e.g. the instant proxy refusing a video YouTube won't serve) instead
+    /// of leaving AVKit stuck on an opaque error.
+    private var itemFailureTask: Task<Void, Never>?
     /// The position (seconds) the current item should begin at: the resume point
     /// the viewer chose, or 0 to start from the beginning.
     private var startPositionSeconds = 0
@@ -68,6 +79,7 @@ final class PlayerViewModel {
         videoId = id
         isLoading = true
         error = nil
+        blockedReason = nil
         didReachEnd = false
         resumePrompt = nil
 
@@ -79,6 +91,15 @@ final class PlayerViewModel {
             // task is never cancelled.
             if Task.isCancelled { isLoading = false; return }
             self.video = video
+
+            // A video the server knows YouTube refuses (age-restricted,
+            // members-only, …) can't stream; explain instead of attempting.
+            // activeUnplayableReason is nil whenever a playable file exists.
+            if !ignoreUnplayableGate, let reason = video.activeUnplayableReason {
+                blockedReason = reason
+                isLoading = false
+                return
+            }
 
             if promptForResume && Self.hasResumePoint(for: video) {
                 // Hand the choice to the viewer; playback resumes in
@@ -98,6 +119,17 @@ final class PlayerViewModel {
             self.error = "Failed to load video: \(error.localizedDescription)"
             isLoading = false
         }
+    }
+
+    /// "Try Anyway" from the blocked screen: retry with the gate off. If
+    /// YouTube now serves the video (cookies fixed, premiere aired) the server
+    /// clears the label and playback just starts; otherwise the normal error
+    /// paths report the failure.
+    func tryAnyway() {
+        ignoreUnplayableGate = true
+        blockedReason = nil
+        let id = videoId
+        Task { await loadVideo(id: id) }
     }
 
     /// Apply the viewer's choice from the resume prompt: resume from the saved
@@ -203,9 +235,50 @@ final class PlayerViewModel {
         isLoading = false
 
         observePlaybackEnd(of: playerItem)
+        watchForItemFailure(playerItem)
         startProgressTimer()
         addAdSkipObserver(to: avPlayer)
         loadAdSegments()
+    }
+
+    /// Watch the freshly attached item until it's ready or failed. AVKit shows
+    /// only an opaque error when an item dies before playing — e.g. the
+    /// instant-stream proxy refusing a video YouTube won't serve — while that
+    /// same failed attempt just taught the server *why* (it classifies and
+    /// stores the reason on a failed resolve). Re-fetch the video and show the
+    /// reason when there is one; otherwise surface a plain error.
+    private func watchForItemFailure(_ item: AVPlayerItem) {
+        itemFailureTask?.cancel()
+        itemFailureTask = Task { [weak self] in
+            let pollInterval = Duration.milliseconds(250)
+            let maxPolls = 120 // ~30s at 250ms per poll
+            var polls = 0
+            while !Task.isCancelled && polls < maxPolls {
+                if item.status == .readyToPlay { return }
+                if item.status == .failed {
+                    await self?.handleItemFailure()
+                    return
+                }
+                try? await Task.sleep(for: pollInterval)
+                polls += 1
+            }
+        }
+    }
+
+    private func handleItemFailure() async {
+        // Only react while this failed item is still what the screen shows.
+        guard player != nil, !didReachEnd else { return }
+        player?.pause()
+        player = nil
+        if !ignoreUnplayableGate,
+           let refreshed = try? await api.getVideo(videoId),
+           let reason = refreshed.activeUnplayableReason {
+            video = refreshed
+            blockedReason = reason
+        } else {
+            error = "Playback failed. The stream could not be started."
+        }
+        isLoading = false
     }
 
     // MARK: - Sponsor skipping
@@ -504,6 +577,8 @@ final class PlayerViewModel {
     private func teardownForNextItem() {
         wsTask?.cancel()
         wsTask = nil
+        itemFailureTask?.cancel()
+        itemFailureTask = nil
         if let endObserver {
             NotificationCenter.default.removeObserver(endObserver)
             self.endObserver = nil
@@ -551,6 +626,8 @@ final class PlayerViewModel {
         progressTimer = nil
         wsTask?.cancel()
         wsTask = nil
+        itemFailureTask?.cancel()
+        itemFailureTask = nil
         if let endObserver {
             NotificationCenter.default.removeObserver(endObserver)
             self.endObserver = nil

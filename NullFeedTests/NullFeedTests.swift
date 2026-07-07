@@ -170,6 +170,72 @@ final class NullFeedTests: XCTestCase {
         XCTAssertNil(video.description)
     }
 
+    // MARK: - Unplayable reason
+
+    func testVideoUnplayableReasonDecoding() throws {
+        let json = """
+        {
+            "id": "v-blocked",
+            "youtube_video_id": "yt-b",
+            "channel_id": "ch-1",
+            "title": "Members Episode",
+            "status": "CATALOGED",
+            "unplayable_reason": "members_only",
+            "channel_name": "Chan"
+        }
+        """.data(using: .utf8)!
+
+        let video = try JSONDecoder.nullFeed.decode(Video.self, from: json)
+        XCTAssertEqual(video.unplayableReason, "members_only")
+        XCTAssertEqual(video.activeUnplayableReason, .membersOnly)
+        XCTAssertEqual(video.activeUnplayableReason?.label, "Members only")
+    }
+
+    func testVideoUnplayableReasonAbsentDecodesToNil() throws {
+        let json = """
+        {
+            "id": "v-ok",
+            "youtube_video_id": "yt-ok",
+            "channel_id": "ch-1",
+            "title": "Normal",
+            "status": "CATALOGED",
+            "channel_name": "Chan"
+        }
+        """.data(using: .utf8)!
+
+        let video = try JSONDecoder.nullFeed.decode(Video.self, from: json)
+        XCTAssertNil(video.unplayableReason)
+        XCTAssertNil(video.activeUnplayableReason)
+    }
+
+    func testVideoUnplayableReasonSuppressedWhenPlayable() throws {
+        // A stale label on a video the server holds a playable file for is
+        // ignored — the file plays regardless of what YouTube refuses.
+        let json = """
+        {
+            "id": "v-stale",
+            "youtube_video_id": "yt-s",
+            "channel_id": "ch-1",
+            "title": "Downloaded anyway",
+            "status": "COMPLETE",
+            "unplayable_reason": "age_restricted",
+            "channel_name": "Chan"
+        }
+        """.data(using: .utf8)!
+
+        let video = try JSONDecoder.nullFeed.decode(Video.self, from: json)
+        XCTAssertEqual(video.unplayableReason, "age_restricted")
+        XCTAssertNil(video.activeUnplayableReason)
+    }
+
+    func testUnknownUnplayableReasonStillBanners() {
+        // Forward-compat: vocabulary this client doesn't know yet must still
+        // produce a (generic) banner rather than crashing or vanishing.
+        let reason = UnplayableReason(wireValue: "some_future_reason")
+        XCTAssertEqual(reason, .unknown)
+        XCTAssertEqual(reason.label, "Unavailable")
+    }
+
     // MARK: - Recommendation
 
     func testRecommendationDecoding() throws {

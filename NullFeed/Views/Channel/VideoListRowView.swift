@@ -44,10 +44,17 @@ struct VideoListRowView: View {
                 HStack(spacing: 12) {
                     // Every episode plays on selection (cached, or started via
                     // instant-stream) — caching is invisible, so the row shows a
-                    // uniform Play affordance rather than a download status.
-                    Label("Play", systemImage: "play.circle")
-                        .font(NullFeedTheme.caption)
-                        .foregroundStyle(NullFeedTheme.accent)
+                    // uniform Play affordance rather than a download status. A
+                    // video YouTube refuses swaps it for the reason instead.
+                    if let reason = video.activeUnplayableReason {
+                        Label(reason.label, systemImage: reason.symbolName)
+                            .font(NullFeedTheme.caption)
+                            .foregroundStyle(reason.accentColor)
+                    } else {
+                        Label("Play", systemImage: "play.circle")
+                            .font(NullFeedTheme.caption)
+                            .foregroundStyle(NullFeedTheme.accent)
+                    }
 
                     if video.isWatched {
                         Label("Watched", systemImage: "checkmark.circle.fill")
