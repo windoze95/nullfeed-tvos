@@ -46,6 +46,7 @@ enum AppConstants {
     static func channelDetail(_ id: String) -> String { "\(apiBase)/channels/\(id)" }
     static func channelPoll(_ id: String) -> String { "\(apiBase)/channels/\(id)/poll" }
     static func channelVideos(_ id: String) -> String { "\(apiBase)/channels/\(id)/videos" }
+    static func channelContentFilter(_ id: String) -> String { "\(apiBase)/channels/\(id)/content-filter" }
     static func channelRefreshImages(_ id: String) -> String { "\(apiBase)/channels/\(id)/refresh-images" }
     static func channelUnsubscribe(_ id: String) -> String { "\(apiBase)/channels/\(id)/unsubscribe" }
     static func videoDetail(_ id: String) -> String { "\(apiBase)/videos/\(id)" }

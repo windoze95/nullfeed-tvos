@@ -627,6 +627,90 @@ final class NullFeedTests: XCTestCase {
         XCTAssertNil(d.inFlightEnd)
     }
 
+    // MARK: - Content type
+
+    func testContentTypeDecodingAndBadge() throws {
+        let json = """
+        {
+            "id": "v",
+            "youtube_video_id": "y",
+            "channel_id": "c",
+            "title": "Clip",
+            "status": "CATALOGED",
+            "content_type": "short",
+            "channel_name": "Chan"
+        }
+        """.data(using: .utf8)!
+
+        let video = try JSONDecoder.nullFeed.decode(Video.self, from: json)
+        XCTAssertEqual(video.contentType, "short")
+        XCTAssertEqual(video.badgeContentType, .short)
+    }
+
+    func testRegularUnknownAbsentContentTypesAreNotBadged() throws {
+        func decodeVideo(_ contentTypeLine: String) throws -> Video {
+            let json = """
+            {
+                "id": "v", "youtube_video_id": "y", "channel_id": "c",
+                "title": "V", "status": "CATALOGED", "channel_name": "Chan"\(contentTypeLine)
+            }
+            """.data(using: .utf8)!
+            return try JSONDecoder.nullFeed.decode(Video.self, from: json)
+        }
+
+        XCTAssertNil(try decodeVideo("").badgeContentType) // absent
+        XCTAssertNil(try decodeVideo(", \"content_type\": \"regular\"").badgeContentType)
+        // Forward-compat: an unknown type maps to unknown and isn't badged.
+        let novel = try decodeVideo(", \"content_type\": \"future_kind\"")
+        XCTAssertEqual(ContentType(wireValue: novel.contentType ?? ""), .unknown)
+        XCTAssertNil(novel.badgeContentType)
+    }
+
+    func testActiveUnplayableSuppressesContentBadge() throws {
+        // A not-yet-playable members-only Short: the unplayable banner wins and
+        // the content-type badge is suppressed (they share the corner).
+        let json = """
+        {
+            "id": "v", "youtube_video_id": "y", "channel_id": "c", "title": "V",
+            "status": "CATALOGED", "content_type": "short",
+            "unplayable_reason": "members_only", "channel_name": "Chan"
+        }
+        """.data(using: .utf8)!
+
+        let video = try JSONDecoder.nullFeed.decode(Video.self, from: json)
+        XCTAssertEqual(video.activeUnplayableReason, .membersOnly)
+        XCTAssertNil(video.badgeContentType)
+    }
+
+    func testChannelDecodesContentFilterFields() throws {
+        let json = """
+        {
+            "id": "c", "youtube_channel_id": "UC", "name": "Chan", "slug": "chan",
+            "is_subscribed": true,
+            "hidden_content_types": ["short"],
+            "available_content_types": ["regular", "short"]
+        }
+        """.data(using: .utf8)!
+
+        let channel = try JSONDecoder.nullFeed.decode(Channel.self, from: json)
+        XCTAssertEqual(channel.isSubscribed, true)
+        XCTAssertEqual(channel.hiddenContentTypes, ["short"])
+        XCTAssertEqual(channel.availableContentTypesParsed, [.regular, .short])
+        XCTAssertTrue(channel.isHidden(.short))
+        XCTAssertTrue(channel.showContentFilter)
+    }
+
+    func testChannelWithoutFilterFieldsDefaults() throws {
+        let json = """
+        {"id": "c", "youtube_channel_id": "UC", "name": "Chan", "slug": "chan"}
+        """.data(using: .utf8)!
+
+        let channel = try JSONDecoder.nullFeed.decode(Channel.self, from: json)
+        XCTAssertNil(channel.isSubscribed)
+        XCTAssertNil(channel.hiddenContentTypes)
+        XCTAssertFalse(channel.showContentFilter)
+    }
+
     private func makeVideo(id: String) throws -> Video {
         let json = """
         {
