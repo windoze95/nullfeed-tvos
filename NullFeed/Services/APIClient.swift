@@ -98,6 +98,12 @@ final class APIClient {
         _ = try await perform(request)
     }
 
+    private func put<T: Decodable>(_ path: String, body: [String: Any]? = nil) async throws -> T {
+        let request = try buildRequest("PUT", path: path, body: body)
+        let data = try await perform(request)
+        return try JSONDecoder.nullFeed.decode(T.self, from: data)
+    }
+
     private func deleteVoid(_ path: String) async throws {
         let request = try buildRequest("DELETE", path: path)
         _ = try await perform(request)
@@ -215,6 +221,12 @@ final class APIClient {
 
     func refreshChannelImages(_ channelId: String) async throws -> Channel {
         try await post(AppConstants.channelRefreshImages(channelId))
+    }
+
+    /// Replace the content types hidden for a channel (the per-channel filter),
+    /// returning the updated channel. An empty list clears the filter.
+    func setContentFilter(_ channelId: String, hidden: [String]) async throws -> Channel {
+        try await put(AppConstants.channelContentFilter(channelId), body: ["hidden_content_types": hidden])
     }
 
     func unsubscribeFromChannel(_ channelId: String) async throws {

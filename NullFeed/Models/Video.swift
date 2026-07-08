@@ -24,6 +24,8 @@ struct Video: Codable, Identifiable, Hashable, Sendable {
     /// Why YouTube refuses this video (raw wire value, see UnplayableReason);
     /// nil = playable as far as the server knows.
     let unplayableReason: String?
+    /// What kind of media this is (raw wire value, see ContentType); nil = regular.
+    let contentType: String?
     let thumbnailUrl: String?
     let description: String?
     var channelName: String
@@ -43,6 +45,7 @@ struct Video: Codable, Identifiable, Hashable, Sendable {
         isWatched = try c.decodeIfPresent(Bool.self, forKey: .isWatched) ?? false
         previewStatus = try c.decodeIfPresent(String.self, forKey: .previewStatus)
         unplayableReason = try c.decodeIfPresent(String.self, forKey: .unplayableReason)
+        contentType = try c.decodeIfPresent(String.self, forKey: .contentType)
         thumbnailUrl = try c.decodeIfPresent(String.self, forKey: .thumbnailUrl)
         description = try c.decodeIfPresent(String.self, forKey: .description)
         channelName = try c.decodeIfPresent(String.self, forKey: .channelName) ?? ""
@@ -52,7 +55,7 @@ struct Video: Codable, Identifiable, Hashable, Sendable {
         case id, youtubeVideoId, channelId, title, durationSeconds
         case uploadedAt, filePath, fileSizeBytes, status
         case watchPositionSeconds, isWatched, previewStatus, unplayableReason
-        case thumbnailUrl, description, channelName
+        case contentType, thumbnailUrl, description, channelName
     }
 }
 
@@ -67,6 +70,16 @@ extension Video {
     var activeUnplayableReason: UnplayableReason? {
         guard !isPlayable, let raw = unplayableReason else { return nil }
         return UnplayableReason(wireValue: raw)
+    }
+
+    /// The content type worth badging, or nil. Regular/unknown aren't badged,
+    /// and the unplayable banner already covers members/premium/age when it's
+    /// showing — so the two never stack.
+    var badgeContentType: ContentType? {
+        if activeUnplayableReason != nil { return nil }
+        guard let raw = contentType else { return nil }
+        let type = ContentType(wireValue: raw)
+        return (type == .regular || type == .unknown) ? nil : type
     }
 
     var hasPreviewReady: Bool {

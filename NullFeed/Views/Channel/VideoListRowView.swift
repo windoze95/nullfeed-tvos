@@ -50,6 +50,10 @@ struct VideoListRowView: View {
                         Label(reason.label, systemImage: reason.symbolName)
                             .font(NullFeedTheme.caption)
                             .foregroundStyle(reason.accentColor)
+                    } else if let type = video.badgeContentType {
+                        Label(type.label, systemImage: type.symbolName)
+                            .font(NullFeedTheme.caption)
+                            .foregroundStyle(type.accentColor)
                     } else {
                         Label("Play", systemImage: "play.circle")
                             .font(NullFeedTheme.caption)

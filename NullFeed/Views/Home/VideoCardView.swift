@@ -56,9 +56,15 @@ struct VideoCardView: View {
             }
 
             // Why this video can't play (age-restricted, members-only, …) —
-            // hidden once a local file makes it playable anyway.
+            // hidden once a local file makes it playable anyway. Otherwise the
+            // content-type pill (Short/Live/…) takes the same corner; the two
+            // never show together.
             if let reason = video.activeUnplayableReason {
                 UnplayableBadgeView(reason: reason)
+                    .padding(8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            } else if let type = video.badgeContentType {
+                ContentTypeBadgeView(type: type)
                     .padding(8)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }

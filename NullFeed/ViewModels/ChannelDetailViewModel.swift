@@ -41,6 +41,25 @@ final class ChannelDetailViewModel {
         Task { [api] in try? await api.prewarmPreviews(Array(ids)) }
     }
 
+    /// Toggle a content type in this channel's per-channel filter (persisted
+    /// server-side), then re-fetch the now-gated video list. Best-effort: a
+    /// failure leaves the current state untouched.
+    func toggleContentType(_ type: ContentType, channelId: String) async {
+        guard let channel else { return }
+        var hidden = Set(channel.hiddenContentTypes ?? [])
+        if hidden.contains(type.rawValue) {
+            hidden.remove(type.rawValue)
+        } else {
+            hidden.insert(type.rawValue)
+        }
+        do {
+            self.channel = try await api.setContentFilter(channelId, hidden: Array(hidden))
+            videos = try await api.getChannelVideos(channelId)
+        } catch {
+            // Leave state as-is on failure.
+        }
+    }
+
     /// Trigger a synchronous server-side poll of just this channel, then reload
     /// its detail and video list.
     func refresh(channelId: String) async {

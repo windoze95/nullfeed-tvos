@@ -24,6 +24,32 @@ struct ChannelDetailView: View {
             }
         }
         .toolbar {
+            // Per-channel content-type filter — only when subscribed and the
+            // channel has more than one kind of media. A checklist of just the
+            // types it has; toggling persists and re-fetches the gated list.
+            if let vm = viewModel, let channel = vm.channel, channel.showContentFilter {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Menu {
+                        ForEach(channel.availableContentTypesParsed, id: \.self) { type in
+                            Button {
+                                Task { await vm.toggleContentType(type, channelId: channelId) }
+                            } label: {
+                                Label(
+                                    type.menuLabel,
+                                    systemImage: channel.isHidden(type) ? "square" : "checkmark.square"
+                                )
+                            }
+                        }
+                    } label: {
+                        Label(
+                            "Filter",
+                            systemImage: (channel.hiddenContentTypes ?? []).isEmpty
+                                ? "line.3.horizontal.decrease.circle"
+                                : "line.3.horizontal.decrease.circle.fill"
+                        )
+                    }
+                }
+            }
             ToolbarItem(placement: .topBarTrailing) {
                 Button("Refresh") {
                     Task { await viewModel?.refresh(channelId: channelId) }
