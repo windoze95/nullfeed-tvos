@@ -542,6 +542,91 @@ final class NullFeedTests: XCTestCase {
         XCTAssertEqual(PlayerViewModel.resumeStart(forPosition: 0), 0)
     }
 
+    // MARK: - Sponsor skip
+
+    @MainActor
+    func testSponsorSkipSeeksToSegmentEndOnFirstEntry() {
+        let segs = [AdSegment(start: 0, end: 30)]
+        let d = PlayerViewModel.sponsorSkipDecision(position: 0, segments: segs, inFlightEnd: nil)
+        XCTAssertEqual(d.seekTo, 30.0)
+        XCTAssertEqual(d.inFlightEnd, 30.0)
+    }
+
+    @MainActor
+    func testSponsorSkipDoesNotReissueWhileInFlight() {
+        // Playhead still stuck inside the segment (seek buffering) — no re-seek.
+        let segs = [AdSegment(start: 0, end: 30)]
+        let d = PlayerViewModel.sponsorSkipDecision(position: 0.2, segments: segs, inFlightEnd: 30)
+        XCTAssertNil(d.seekTo)
+        XCTAssertEqual(d.inFlightEnd, 30.0)
+    }
+
+    @MainActor
+    func testSponsorSkipYieldsExactlyOneSeekOverManyTicks() {
+        // Regression guard: a start sponsor whose seek can't land yet must not
+        // fire a seek on every 0.5s observer tick.
+        let segs = [AdSegment(start: 0, end: 30)]
+        var inFlight: Double?
+        var seeks = 0
+        for _ in 0..<100 {
+            let d = PlayerViewModel.sponsorSkipDecision(position: 0.1, segments: segs, inFlightEnd: inFlight)
+            inFlight = d.inFlightEnd
+            if d.seekTo != nil { seeks += 1 }
+        }
+        XCTAssertEqual(seeks, 1)
+    }
+
+    @MainActor
+    func testSponsorSkipClearsGuardOncePastSegment() {
+        let segs = [AdSegment(start: 0, end: 30)]
+        let d = PlayerViewModel.sponsorSkipDecision(position: 30, segments: segs, inFlightEnd: 30)
+        XCTAssertNil(d.seekTo)
+        XCTAssertNil(d.inFlightEnd)
+    }
+
+    @MainActor
+    func testSponsorSkipSkipsLaterSegmentAfterPassingEarlier() {
+        let segs = [AdSegment(start: 0, end: 30), AdSegment(start: 60, end: 75)]
+        let past = PlayerViewModel.sponsorSkipDecision(position: 30, segments: segs, inFlightEnd: 30)
+        XCTAssertNil(past.seekTo)
+        XCTAssertNil(past.inFlightEnd)
+        let second = PlayerViewModel.sponsorSkipDecision(position: 60, segments: segs, inFlightEnd: past.inFlightEnd)
+        XCTAssertEqual(second.seekTo, 75.0)
+        XCTAssertEqual(second.inFlightEnd, 75.0)
+    }
+
+    @MainActor
+    func testSponsorSkipChainsIntoAdjacentSegment() {
+        let segs = [AdSegment(start: 0, end: 30), AdSegment(start: 30, end: 45)]
+        // First skip lands at 30.0, the start of the next segment; skip straight in.
+        let d = PlayerViewModel.sponsorSkipDecision(position: 30, segments: segs, inFlightEnd: 30)
+        XCTAssertEqual(d.seekTo, 45.0)
+        XCTAssertEqual(d.inFlightEnd, 45.0)
+    }
+
+    @MainActor
+    func testSponsorSkipNoSeekOutsideSegments() {
+        let segs = [AdSegment(start: 0, end: 30)]
+        let d = PlayerViewModel.sponsorSkipDecision(position: 45, segments: segs, inFlightEnd: nil)
+        XCTAssertNil(d.seekTo)
+        XCTAssertNil(d.inFlightEnd)
+    }
+
+    @MainActor
+    func testSponsorSkipRespectsTailMargin() {
+        // Inside the last 0.5s of the segment — let it play out, no seek.
+        let segs = [AdSegment(start: 0, end: 30)]
+        let d = PlayerViewModel.sponsorSkipDecision(position: 29.6, segments: segs, inFlightEnd: nil)
+        XCTAssertNil(d.seekTo)
+    }
+
+    @MainActor
+    func testSponsorSkipNoSegmentsNoDecision() {
+        let d = PlayerViewModel.sponsorSkipDecision(position: 10, segments: [], inFlightEnd: nil)
+        XCTAssertNil(d.seekTo)
+        XCTAssertNil(d.inFlightEnd)
+    }
+
     private func makeVideo(id: String) throws -> Video {
         let json = """
         {

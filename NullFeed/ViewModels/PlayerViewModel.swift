@@ -60,6 +60,11 @@ final class PlayerViewModel {
     private var advanceTask: Task<Void, Never>?
     /// Detected sponsor segments; the playhead seeks past any it enters.
     private var adSegments: [AdSegment] = []
+    /// End (seconds) of the sponsor segment whose skip-seek has been issued but
+    /// hasn't landed yet. Guards `maybeSkipAd` against re-issuing a seek on every
+    /// 0.5s observer tick while a from-cold seek is still buffering — that seek
+    /// storm livelocks the player. Cleared once the playhead lands past it.
+    private var skipSeekInFlightEnd: Double?
     /// Token for the periodic time observer that drives ad skipping; removed in
     /// teardown/cleanup before the player is released.
     private var adSkipObserver: Any?
@@ -243,6 +248,8 @@ final class PlayerViewModel {
         player = avPlayer
         isPreviewMode = isPreview
         isLoading = false
+        // Fresh item: no skip-seek is in flight yet.
+        skipSeekInFlightEnd = nil
 
         observePlaybackEnd(of: playerItem)
         watchForItemFailure(playerItem)
@@ -344,13 +351,59 @@ final class PlayerViewModel {
 
     private func maybeSkipAd(at positionSeconds: Double) {
         guard let player, !adSegments.isEmpty, positionSeconds.isFinite else { return }
-        // The 0.5s tail margin stops a seek to a segment's end from re-triggering.
-        for segment in adSegments
-        where positionSeconds >= segment.start && positionSeconds < segment.end - 0.5 {
-            player.seek(to: CMTime(seconds: segment.end, preferredTimescale: 1))
+        // Stand down during the HQ swap: switchToHq reuses this player and
+        // replaces its item (currentTime momentarily reads ~0) then re-seeks to
+        // the restored spot, so a skip-seek here would fire on a fresh,
+        // unbuffered item and fight the swap's own seek — the "finished caching"
+        // freeze.
+        guard !switchingToHq else { return }
+        let decision = Self.sponsorSkipDecision(
+            position: positionSeconds,
+            segments: adSegments,
+            inFlightEnd: skipSeekInFlightEnd
+        )
+        skipSeekInFlightEnd = decision.inFlightEnd
+        if let target = decision.seekTo {
+            player.seek(to: CMTime(seconds: target, preferredTimescale: 1))
             flashSkipToast()
-            break
         }
+    }
+
+    /// Pure decision for the sponsor-skip guard, extracted so its anti-seek-storm
+    /// behavior is unit-testable without a live player.
+    ///
+    /// Given the playhead `position`, the detected `segments`, and the end
+    /// (seconds) of a segment whose skip-seek is already in flight
+    /// (`inFlightEnd`), returns the seek target (seconds) to issue — nil when
+    /// nothing should be sought — and the in-flight end to remember for the next
+    /// tick.
+    ///
+    /// The in-flight end is the crux: while a skip-seek is still buffering the
+    /// playhead keeps reporting a position inside the segment, so without this
+    /// the caller would re-issue a seek on every 0.5s observer tick. Each
+    /// re-seek cancels and restarts the AVPlayer seek, so on a slow-to-buffer
+    /// source it never lands and the player livelocks. Issue once, then wait for
+    /// the playhead to land past the segment before considering another skip.
+    static func sponsorSkipDecision(
+        position: Double,
+        segments: [AdSegment],
+        inFlightEnd: Double?
+    ) -> (seekTo: Double?, inFlightEnd: Double?) {
+        var inFlightEnd = inFlightEnd
+        // The playhead landed past the segment we were skipping — drop the guard
+        // so a later segment is free to skip.
+        if let end = inFlightEnd, position >= end - 0.5 {
+            inFlightEnd = nil
+        }
+        for segment in segments
+        where position >= segment.start && position < segment.end - 0.5 {
+            // This segment's skip is already in flight — hold, don't storm.
+            if inFlightEnd == segment.end {
+                return (nil, inFlightEnd)
+            }
+            return (segment.end, segment.end)
+        }
+        return (nil, inFlightEnd)
     }
 
     private func flashSkipToast() {
@@ -474,6 +527,10 @@ final class PlayerViewModel {
         guard !Task.isCancelled, self.player === player, player.currentItem === hqItem else { return }
 
         observePlaybackEnd(of: hqItem)
+        // Any skip-seek issued against the preview item is void now that the HQ
+        // item is in place — clear the guard so a sponsor the playhead is still
+        // sitting in gets skipped once on the new item.
+        skipSeekInFlightEnd = nil
         player.rate = resumeRate
         isPreviewMode = false
     }
