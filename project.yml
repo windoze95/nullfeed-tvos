@@ -35,6 +35,9 @@ targets:
             CFBundleURLName: codes.julian.nullfeed
             CFBundleURLSchemes:
               - nullfeed
+        NSLocalNetworkUsageDescription: NullFeed connects to your self-hosted server on the local network.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: codes.julian.nullfeed
@@ -87,6 +90,8 @@ targets:
         NSExtension:
           NSExtensionPointIdentifier: com.apple.tv-top-shelf
           NSExtensionPrincipalClass: $(PRODUCT_MODULE_NAME).ContentProvider
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: codes.julian.nullfeed.TopShelf

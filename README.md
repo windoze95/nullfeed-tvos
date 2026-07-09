@@ -98,13 +98,14 @@ All ViewModels use Swift's `@Observable` macro with `@MainActor` isolation. Depe
 
 ### Navigation
 
-`TabView` with `NavigationStack` provides tab-based navigation across five sections. Playback is presented above the entire app shell, so tabs and browsing navigation are never shown over video:
+`TabView` with `NavigationStack` provides tab-based navigation across six clear sections. Playback is presented above the entire app shell, so tabs and browsing navigation are never shown over video:
 
 1. **Home** -- Resume-aware feed with Continue Watching, New Episodes, Recently Added rows
-2. **Library** -- All subscribed channels in a grid layout
-3. **Discover** -- AI-powered channel recommendations
-4. **Search** -- Voice- and keyboard-friendly search across videos and channels
-5. **Settings** -- Server connection testing/editing and profile management
+2. **Up Next** -- A visible, dedicated queue for lean-back playback
+3. **Channels** -- All subscribed channels in a grid layout
+4. **Explore** -- AI-powered channel recommendations
+5. **Search** -- Voice- and keyboard-friendly search across videos and channels
+6. **Settings** -- Server connection testing/editing and profile management
 
 Deep linking via `nullfeed://` URL schemes enables playback from the Top Shelf and other system surfaces.
 

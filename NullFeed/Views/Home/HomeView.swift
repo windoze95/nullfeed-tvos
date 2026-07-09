@@ -5,24 +5,29 @@ struct HomeView: View {
     @Environment(WebSocketClient.self) private var webSocket
     @Environment(AppState.self) private var appState
     @State private var viewModel: HomeViewModel?
-    @State private var path = NavigationPath()
+    @State private var subscribeViewModel: LibraryViewModel?
+    @State private var showSubscribe = false
     @Namespace private var feedFocus
 
     var body: some View {
-        NavigationStack(path: $path) {
+        NavigationStack {
             Group {
                 if let viewModel {
-                    StateView(state: .resolve(
-                        isLoading: viewModel.isLoading,
-                        isEmpty: viewModel.isEmpty,
-                        error: viewModel.error,
-                        empty: (
-                            icon: "play.rectangle.on.rectangle",
-                            title: "Nothing Here Yet",
-                            subtitle: "Subscribe to channels to start watching."
+                    StateView(
+                        state: .resolve(
+                            isLoading: viewModel.isLoading,
+                            isEmpty: viewModel.isEmpty,
+                            error: viewModel.error,
+                            empty: (
+                                icon: "play.rectangle.on.rectangle",
+                                title: "Nothing Here Yet",
+                                subtitle: "Add a channel to start building your personal feed."
+                            ),
+                            retry: { Task { await viewModel.loadFeed() } }
                         ),
-                        retry: { Task { await viewModel.loadFeed() } }
-                    )) {
+                        emptyActionTitle: "Add Channel",
+                        emptyAction: presentSubscribe
+                    ) {
                         feedContent(viewModel: viewModel)
                     }
                 }
@@ -32,13 +37,6 @@ struct HomeView: View {
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
-                        path.append(HomeRoute.queue)
-                    } label: {
-                        Label("Up Next", systemImage: "rectangle.stack.badge.play")
-                    }
-                }
-                ToolbarItem(placement: .topBarTrailing) {
-                    Button {
                         Task { await viewModel?.refresh() }
                     } label: {
                         Label("Refresh", systemImage: "arrow.clockwise")
@@ -46,18 +44,12 @@ struct HomeView: View {
                     .disabled(viewModel?.isRefreshing == true)
                 }
             }
-            .navigationDestination(for: HomeRoute.self) { route in
-                switch route {
-                case .queue:
-                    QueueView()
-                }
-            }
-            .onChange(of: path.count) { _, newCount in
-                // Returning from Up Next may have changed queue/feed state. A
-                // reload with content already on screen swaps in place without a
-                // loading flash.
-                if newCount == 0 {
-                    Task { await viewModel?.loadFeed() }
+            .sheet(isPresented: $showSubscribe) {
+                if let subscribeViewModel {
+                    SubscribeChannelView(viewModel: subscribeViewModel) {
+                        showSubscribe = false
+                        Task { await viewModel?.loadFeed() }
+                    }
                 }
             }
             .onChange(of: appState.presentedVideo) { oldValue, newValue in
@@ -90,6 +82,13 @@ struct HomeView: View {
                 }
             }
         }
+    }
+
+    private func presentSubscribe() {
+        if subscribeViewModel == nil {
+            subscribeViewModel = LibraryViewModel(api: api)
+        }
+        showSubscribe = true
     }
 
     @ViewBuilder
@@ -187,9 +186,4 @@ struct HomeView: View {
         }
         return "Welcome back, \(name)"
     }
-}
-
-/// Navigation targets reachable from Home beyond playing a video.
-private enum HomeRoute: Hashable {
-    case queue
 }

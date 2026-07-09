@@ -51,7 +51,7 @@ struct DiscoverView: View {
             VStack(alignment: .leading, spacing: 34) {
                 ScreenHeaderView(
                     symbol: "sparkles",
-                    title: "Discover",
+                    title: "Explore",
                     subtitle: "Fresh channels picked for your profile"
                 )
 

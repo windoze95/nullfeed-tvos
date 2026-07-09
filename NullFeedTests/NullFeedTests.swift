@@ -16,6 +16,26 @@ final class NullFeedTests: XCTestCase {
         XCTAssertNil(APIClient.normalizedServerURL("not a server"))
     }
 
+    func testChannelBannerPromotesYouTubeImageRendition() {
+        XCTAssertEqual(
+            CinematicBannerView.highResolutionURL(
+                "https://yt3.googleusercontent.com/example=w1060-fcrop64=1,0000ffff-no-nd-rj"
+            ),
+            "https://yt3.googleusercontent.com/example=w2560-fcrop64=1,0000ffff-no-nd-rj"
+        )
+        XCTAssertEqual(
+            CinematicBannerView.highResolutionURL(
+                "https://yt3.ggpht.com/example=s320-c-k-c0x00ffffff-no-rj"
+            ),
+            "https://yt3.ggpht.com/example=s2560-c-k-c0x00ffffff-no-rj"
+        )
+    }
+
+    func testChannelBannerLeavesOtherImageHostsAlone() {
+        let url = "https://images.example.com/banner=w320.jpg"
+        XCTAssertEqual(CinematicBannerView.highResolutionURL(url), url)
+    }
+
     func testYouTubeAccountStatusDecoding() throws {
         let json = """
         {

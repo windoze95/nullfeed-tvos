@@ -14,26 +14,21 @@ struct RecommendationCardView: View {
         VStack(alignment: .leading, spacing: 16) {
             // Banner / Avatar
             ZStack(alignment: .bottomLeading) {
-                Group {
-                    if let bannerUrl = recommendation.bannerUrl {
-                        AsyncImageView(url: api.mediaURL(bannerUrl), cornerRadius: 0)
-                    } else {
-                        LinearGradient(
-                            colors: [NullFeedTheme.cardHover, NullFeedTheme.surface],
-                            startPoint: .topLeading,
-                            endPoint: .bottomTrailing
-                        )
-                        .overlay {
-                            AsyncImageView(url: api.mediaURL(recommendation.avatarUrl), cornerRadius: 44)
-                                .frame(width: 88, height: 88)
-                                .overlay {
-                                    if recommendation.avatarUrl?.isEmpty != false {
-                                        Text(recommendation.channelName.prefix(1).uppercased())
-                                            .font(NullFeedTheme.headlineSmall)
-                                            .foregroundStyle(NullFeedTheme.accent)
-                                    }
+                CinematicBannerView(
+                    url: api.mediaURL(recommendation.bannerUrl),
+                    showSharpArtwork: false
+                )
+                .overlay {
+                    if recommendation.bannerUrl?.isEmpty != false {
+                        AsyncImageView(url: api.mediaURL(recommendation.avatarUrl), cornerRadius: 44)
+                            .frame(width: 88, height: 88)
+                            .overlay {
+                                if recommendation.avatarUrl?.isEmpty != false {
+                                    Text(recommendation.channelName.prefix(1).uppercased())
+                                        .font(NullFeedTheme.headlineSmall)
+                                        .foregroundStyle(NullFeedTheme.accent)
                                 }
-                        }
+                            }
                     }
                 }
                 .frame(height: 140)
