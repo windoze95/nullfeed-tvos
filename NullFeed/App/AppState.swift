@@ -6,12 +6,15 @@ final class AppState {
     var currentUser: User?
     var isAuthenticated: Bool { currentUser != nil }
     var isLoading = true
+    /// Changes when Settings saves a new backend origin. The app shell uses it
+    /// to rebuild data-backed screens so content from two servers never mixes.
+    var serverRevision = 0
 
-    /// A video to open in the player, set from a notification payload or a
-    /// `nullfeed://player/<id>` deep link and observed by `RootView`, which
-    /// presents the player over the current tab. Cleared automatically when the
-    /// player is dismissed (the `fullScreenCover` binding writes back nil).
-    var deepLinkVideo: DeepLinkVideo?
+    /// The video currently presented above the app shell. Every play action,
+    /// including Top Shelf and notification deep links, comes through this one
+    /// route so the tab bar and navigation stack never remain visible behind
+    /// playback. Cleared automatically when the full-screen player is dismissed.
+    var presentedVideo: PlaybackDestination?
 
     /// A deep-link target captured before a profile was active (e.g. the app was
     /// opened from the Top Shelf while signed out); applied once authenticated.
@@ -24,11 +27,18 @@ final class AppState {
     private let storage: StorageService
     private let api: APIClient
     private let webSocket: WebSocketClient
+    private let queue: QueueViewModel
 
-    init(storage: StorageService, api: APIClient, webSocket: WebSocketClient) {
+    init(
+        storage: StorageService,
+        api: APIClient,
+        webSocket: WebSocketClient,
+        queue: QueueViewModel
+    ) {
         self.storage = storage
         self.api = api
         self.webSocket = webSocket
+        self.queue = queue
     }
 
     func checkSession() async {
@@ -61,6 +71,7 @@ final class AppState {
     }
 
     func login(user: User, token: String) {
+        queue.reset()
         storage.sessionToken = token
         storage.selectedUserId = user.id
         currentUser = user
@@ -79,8 +90,9 @@ final class AppState {
             Task { try? await api.unregisterPushToken(deviceId: deviceId, sessionToken: token) }
         }
         storage.clearSession()
+        queue.reset()
         currentUser = nil
-        deepLinkVideo = nil
+        presentedVideo = nil
         pendingDeepLinkVideoId = nil
     }
 
@@ -91,7 +103,19 @@ final class AppState {
             pendingDeepLinkVideoId = videoId
             return
         }
-        deepLinkVideo = DeepLinkVideo(id: videoId)
+        presentedVideo = PlaybackDestination(id: videoId)
+    }
+
+    /// Rebind services after Settings saves a different server address. The
+    /// active profile remains selected (useful when only the host name changed),
+    /// while tickets and the realtime socket are recreated for the new origin.
+    func serverConfigurationDidChange() {
+        api.resetConnectionState()
+        queue.reset()
+        serverRevision += 1
+        guard let userId = currentUser?.id else { return }
+        webSocket.disconnect()
+        connectWebSocket(userId: userId)
     }
 
     /// Send a freshly minted APNs device token to the backend. Best-effort: a
@@ -117,7 +141,7 @@ final class AppState {
         pushRegistrar?.requestAuthorizationAndRegister()
         if let pending = pendingDeepLinkVideoId {
             pendingDeepLinkVideoId = nil
-            deepLinkVideo = DeepLinkVideo(id: pending)
+            presentedVideo = PlaybackDestination(id: pending)
         }
     }
 
@@ -129,9 +153,8 @@ final class AppState {
     }
 }
 
-/// A video the app should open in the player, captured from a notification
-/// payload or a `nullfeed://player/<id>` deep link. Identifiable so it can drive
-/// a `fullScreenCover(item:)`.
-struct DeepLinkVideo: Identifiable, Hashable, Sendable {
+/// A play request from any app surface. Identifiable so it can drive the single
+/// root-level `fullScreenCover(item:)` used for navigation-free playback.
+struct PlaybackDestination: Identifiable, Hashable, Sendable {
     let id: String
 }

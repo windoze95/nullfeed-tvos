@@ -1,8 +1,12 @@
 import SwiftUI
+import UIKit
 
 struct AsyncImageView: View {
     let url: String?
     var cornerRadius: CGFloat = NullFeedTheme.cardRadius
+
+    @State private var image: UIImage?
+    @State private var didFail = false
 
     private var imageURL: URL? {
         guard let url, !url.isEmpty else { return nil }
@@ -10,20 +14,13 @@ struct AsyncImageView: View {
     }
 
     var body: some View {
-        AsyncImage(url: imageURL) { phase in
-            switch phase {
-            case .empty:
-                RoundedRectangle(cornerRadius: cornerRadius)
-                    .fill(NullFeedTheme.surface)
-
-            case .success(let image):
-                image
+        Group {
+            if let image {
+                Image(uiImage: image)
                     .resizable()
                     .aspectRatio(contentMode: .fill)
-                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-                    .transition(.opacity.animation(.easeIn(duration: 0.3)))
-
-            case .failure:
+                    .transition(.opacity.animation(.easeIn(duration: 0.2)))
+            } else if didFail {
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .fill(NullFeedTheme.surface)
                     .overlay(
@@ -31,11 +28,21 @@ struct AsyncImageView: View {
                             .font(.title)
                             .foregroundStyle(NullFeedTheme.textMuted)
                     )
-
-            @unknown default:
+            } else {
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .fill(NullFeedTheme.surface)
             }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
+        .task(id: url) {
+            image = nil
+            didFail = false
+            guard let imageURL else { return }
+
+            let loaded = await ImageLoader.shared.load(from: imageURL.absoluteString)
+            guard !Task.isCancelled else { return }
+            image = loaded
+            didFail = loaded == nil
         }
     }
 }

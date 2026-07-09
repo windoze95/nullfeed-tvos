@@ -14,15 +14,21 @@ extension View {
             .overlay(
                 RoundedRectangle(cornerRadius: cornerRadius)
                     .stroke(
-                        NullFeedTheme.primary,
+                        LinearGradient(
+                            colors: [NullFeedTheme.accent, NullFeedTheme.primary],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        ),
                         lineWidth: isFocused ? NullFeedTheme.focusBorderWidth : 0
                     )
             )
             .shadow(
-                color: isFocused ? NullFeedTheme.primary.opacity(0.5) : .clear,
-                radius: 15
+                color: isFocused ? NullFeedTheme.primary.opacity(0.42) : .clear,
+                radius: 24,
+                y: 10
             )
-            .animation(.easeInOut(duration: 0.2), value: isFocused)
+            .zIndex(isFocused ? 1 : 0)
+            .animation(.spring(response: 0.28, dampingFraction: 0.78), value: isFocused)
     }
 }
 
@@ -44,7 +50,10 @@ struct CardButtonStyle: ButtonStyle {
 
         var body: some View {
             configuration.label
+                .scaleEffect(configuration.isPressed ? 0.97 : 1)
+                .opacity(configuration.isPressed ? 0.86 : 1)
                 .cardFocusStyle(isFocused: isFocused, cornerRadius: cornerRadius)
+                .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
         }
     }
 }

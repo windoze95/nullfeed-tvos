@@ -9,7 +9,7 @@ struct LibraryView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                NullFeedTheme.background.ignoresSafeArea()
+                NullFeedBackdrop()
 
                 if let vm = viewModel {
                     StateView(state: .resolve(
@@ -32,13 +32,18 @@ struct LibraryView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Refresh") {
+                    Button {
                         Task { await viewModel?.refresh() }
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
                     }
+                    .disabled(viewModel?.isRefreshing == true)
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Subscribe") {
+                    Button {
                         showSubscribe = true
+                    } label: {
+                        Label("Add Channel", systemImage: "plus")
                     }
                 }
             }
@@ -61,20 +66,28 @@ struct LibraryView: View {
     @ViewBuilder
     private func channelGrid(_ vm: LibraryViewModel) -> some View {
         ScrollView {
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.fixed(AppConstants.channelCardWidth), spacing: 40), count: 5),
-                spacing: 40
-            ) {
-                ForEach(Array(vm.channels.enumerated()), id: \.element.id) { index, channel in
-                    NavigationLink(value: channel) {
-                        ChannelCardView(channel: channel)
+            VStack(alignment: .leading, spacing: 34) {
+                ScreenHeaderView(
+                    symbol: "rectangle.stack.fill",
+                    title: "Library",
+                    subtitle: "\(vm.channels.count) subscribed \(vm.channels.count == 1 ? "channel" : "channels")"
+                )
+
+                LazyVGrid(columns: NullFeedLayout.channelGridColumns, spacing: NullFeedLayout.gridSpacing) {
+                    ForEach(Array(vm.channels.enumerated()), id: \.element.id) { index, channel in
+                        NavigationLink(value: channel) {
+                            ChannelCardView(channel: channel)
+                        }
+                        .buttonStyle(CardButtonStyle())
+                        .prefersDefaultFocus(index == 0, in: gridFocus)
                     }
-                    .buttonStyle(CardButtonStyle())
-                    .prefersDefaultFocus(index == 0, in: gridFocus)
                 }
             }
-            .padding(NullFeedTheme.contentPadding)
+            .padding(.horizontal, NullFeedTheme.contentPadding)
+            .padding(.top, 38)
+            .padding(.bottom, NullFeedTheme.contentPadding)
             .focusScope(gridFocus)
         }
+        .scrollClipDisabled()
     }
 }

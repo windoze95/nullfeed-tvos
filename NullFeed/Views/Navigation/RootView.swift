@@ -23,11 +23,11 @@ struct RootView: View {
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(NullFeedTheme.background)
-        // A notification payload or Top Shelf "play" deep link opens the player
-        // over whatever is showing. Driven by AppState so any surface that wants
-        // to start playback just sets `deepLinkVideo` (only set once authenticated).
-        .fullScreenCover(item: $appState.deepLinkVideo) { video in
+        .background(NullFeedBackdrop())
+        // Playback always lives above the entire app shell. That keeps tabs,
+        // toolbars, and nested navigation out of the video experience whether
+        // playback began from a card, search, queue, notification, or Top Shelf.
+        .fullScreenCover(item: $appState.presentedVideo) { video in
             PlayerView(videoId: video.id)
         }
         .task {

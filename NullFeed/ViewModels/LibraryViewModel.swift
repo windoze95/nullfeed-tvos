@@ -34,12 +34,16 @@ final class LibraryViewModel {
         isRefreshing = false
     }
 
-    func subscribeToChannel(url: String, trackingMode: String = "FUTURE_ONLY") async {
+    @discardableResult
+    func subscribeToChannel(url: String, trackingMode: String = "FUTURE_ONLY") async -> Bool {
+        error = nil
         do {
             try await api.subscribeToChannel(url: url, trackingMode: trackingMode)
             await loadChannels()
+            return true
         } catch {
             self.error = error.localizedDescription
+            return false
         }
     }
 

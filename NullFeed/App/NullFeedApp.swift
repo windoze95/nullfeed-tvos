@@ -13,12 +13,18 @@ struct NullFeedApp: App {
         let storage = StorageService()
         let api = APIClient(storage: storage)
         let webSocket = WebSocketClient(api: api)
-        let appState = AppState(storage: storage, api: api, webSocket: webSocket)
+        let queue = QueueViewModel(api: api)
+        let appState = AppState(
+            storage: storage,
+            api: api,
+            webSocket: webSocket,
+            queue: queue
+        )
         _storage = State(initialValue: storage)
         _api = State(initialValue: api)
         _webSocket = State(initialValue: webSocket)
         _appState = State(initialValue: appState)
-        _queue = State(initialValue: QueueViewModel(api: api))
+        _queue = State(initialValue: queue)
     }
 
     var body: some Scene {

@@ -8,14 +8,25 @@ struct ProfilePickerView: View {
     @State private var pinUser: User?
     @State private var addProfileViewModel: AddProfileViewModel?
     @State private var showAddProfile = false
+    @Namespace private var profileFocus
 
     var body: some View {
         VStack(spacing: 48) {
             Spacer()
 
-            Text("Who's Watching?")
-                .font(NullFeedTheme.headlineLarge)
-                .foregroundStyle(NullFeedTheme.textPrimary)
+            VStack(spacing: 14) {
+                Image(systemName: "play.rectangle.on.rectangle.fill")
+                    .font(.system(size: 52, weight: .semibold))
+                    .foregroundStyle(NullFeedTheme.accent)
+
+                Text("Who's Watching?")
+                    .font(NullFeedTheme.headlineLarge)
+                    .foregroundStyle(NullFeedTheme.textPrimary)
+
+                Text("Choose a profile to open your personal library")
+                    .font(NullFeedTheme.bodyMedium)
+                    .foregroundStyle(NullFeedTheme.textSecondary)
+            }
 
             if viewModel.isLoading {
                 ProgressView()
@@ -29,7 +40,7 @@ struct ProfilePickerView: View {
 
                 ScrollView(.horizontal, showsIndicators: false) {
                     HStack(spacing: 32) {
-                        ForEach(viewModel.profiles) { user in
+                        ForEach(Array(viewModel.profiles.enumerated()), id: \.element.id) { index, user in
                             ProfileCardView(user: user) {
                                 if user.hasPin {
                                     pinUser = user
@@ -37,12 +48,17 @@ struct ProfilePickerView: View {
                                     Task { await viewModel.selectProfile(userId: user.id) }
                                 }
                             }
+                            .prefersDefaultFocus(index == 0, in: profileFocus)
                         }
 
                         AddProfileCard { openAddProfile() }
+                            .prefersDefaultFocus(viewModel.profiles.isEmpty, in: profileFocus)
                     }
                     .padding(.horizontal, NullFeedTheme.contentPadding)
+                    .padding(.vertical, 28)
+                    .focusScope(profileFocus)
                 }
+                .scrollClipDisabled()
                 .sheet(isPresented: $showAddProfile) {
                     if let addProfileViewModel {
                         AddProfileView(viewModel: addProfileViewModel, api: api) {
@@ -62,7 +78,7 @@ struct ProfilePickerView: View {
             Spacer()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(NullFeedTheme.background)
+        .background(NullFeedBackdrop())
         .sheet(item: $pinUser) { user in
             PinEntryView(
                 user: user,
@@ -110,6 +126,10 @@ private struct AddProfileCard: View {
             .padding(24)
             .background(NullFeedTheme.card)
             .clipShape(RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius))
+            .overlay {
+                RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius)
+                    .stroke(.white.opacity(0.08), lineWidth: 1)
+            }
         }
         .buttonStyle(CardButtonStyle())
     }

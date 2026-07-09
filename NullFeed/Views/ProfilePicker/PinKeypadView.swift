@@ -49,7 +49,7 @@ struct PinKeypadView: View {
                 .background(NullFeedTheme.card)
                 .clipShape(RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CardButtonStyle())
         }
     }
 

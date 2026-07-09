@@ -40,6 +40,7 @@ enum AppConstants {
     static let discover = "\(apiBase)/discover"
     static let discoverRefresh = "\(apiBase)/discover/refresh"
     static let queue = "\(apiBase)/queue"
+    static let settingsYoutubeCookies = "\(apiBase)/settings/youtube-cookies"
     static let health = "\(apiBase)/health"
     static let pushRegister = "\(apiBase)/push/register"
 

@@ -3,14 +3,17 @@ import SwiftUI
 struct VideoCardView: View {
     private let video: Video
     private let channelName: String
+    private let channelAvatarUrl: String?
     var onSelect: (() -> Void)?
 
     @Environment(APIClient.self) private var api
+    @Environment(QueueViewModel.self) private var queue
 
     /// Build from a feed row, which carries its own channel object.
     init(feedItem: FeedItem, onSelect: (() -> Void)? = nil) {
         self.video = feedItem.video
         self.channelName = feedItem.channel.name
+        self.channelAvatarUrl = feedItem.channel.avatarUrl
         self.onSelect = onSelect
     }
 
@@ -19,6 +22,7 @@ struct VideoCardView: View {
     init(video: Video, onSelect: (() -> Void)? = nil) {
         self.video = video
         self.channelName = video.channelName
+        self.channelAvatarUrl = nil
         self.onSelect = onSelect
     }
 
@@ -31,10 +35,27 @@ struct VideoCardView: View {
                 infoView
             }
             .frame(width: AppConstants.videoCardWidth)
-            .background(NullFeedTheme.card)
-            .clipShape(RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius))
+            .contentShape(RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius))
         }
         .buttonStyle(CardButtonStyle())
+        .contextMenu {
+            if queue.isQueued(video.id) {
+                Button(role: .destructive) {
+                    Task { await queue.remove(video.id) }
+                } label: {
+                    Label("Remove from Up Next", systemImage: "minus.circle")
+                }
+            } else {
+                Button {
+                    Task { await queue.add(video) }
+                } label: {
+                    Label("Add to Up Next", systemImage: "plus.circle")
+                }
+            }
+        }
+        .task { await queue.ensureLoaded() }
+        .accessibilityLabel("\(video.title), \(channelName)")
+        .accessibilityHint("Play video")
     }
 
     private var thumbnailView: some View {
@@ -69,29 +90,60 @@ struct VideoCardView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
             }
 
-            if video.watchProgress > 0 {
+            if video.watchProgress > 0 && !video.isWatched {
                 VStack {
                     Spacer()
                     ProgressBarView(progress: video.watchProgress)
                 }
             }
+
+            if video.isWatched {
+                Label("Watched", systemImage: "checkmark.circle.fill")
+                    .font(NullFeedTheme.caption)
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 9)
+                    .padding(.vertical, 5)
+                    .background(.black.opacity(0.72), in: Capsule())
+                    .padding(8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
+            }
+
+            if queue.isQueued(video.id) {
+                Image(systemName: "rectangle.stack.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(.white)
+                    .padding(8)
+                    .background(.black.opacity(0.72), in: Circle())
+                    .padding(8)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topTrailing)
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius)
+                .stroke(.white.opacity(0.08), lineWidth: 1)
         }
     }
 
     private var infoView: some View {
-        VStack(alignment: .leading, spacing: 4) {
+        VStack(alignment: .leading, spacing: 6) {
             Text(video.title)
                 .font(NullFeedTheme.titleSmall)
                 .foregroundStyle(NullFeedTheme.textPrimary)
                 .lineLimit(2)
 
-            Text(channelName)
-                .font(NullFeedTheme.caption)
-                .foregroundStyle(NullFeedTheme.textSecondary)
-                .lineLimit(1)
+            HStack(spacing: 8) {
+                if let channelAvatarUrl {
+                    AsyncImageView(url: api.mediaURL(channelAvatarUrl), cornerRadius: 12)
+                        .frame(width: 24, height: 24)
+                }
+                Text(channelName)
+                    .font(NullFeedTheme.caption)
+                    .foregroundStyle(NullFeedTheme.textMuted)
+                    .lineLimit(1)
+            }
         }
-        .padding(.horizontal, 12)
-        .padding(.bottom, 12)
+        .padding(.horizontal, 2)
     }
 
     private var thumbnailUrl: String? {

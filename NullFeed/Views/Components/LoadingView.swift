@@ -5,6 +5,6 @@ struct LoadingView: View {
         ProgressView()
             .tint(NullFeedTheme.primary)
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(NullFeedTheme.background)
+            .background(NullFeedBackdrop())
     }
 }

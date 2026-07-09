@@ -2,6 +2,7 @@ import SwiftUI
 
 struct SearchView: View {
     @Environment(APIClient.self) private var api
+    @Environment(AppState.self) private var appState
     @State private var viewModel: SearchViewModel?
     @State private var searchText = ""
     @State private var path = NavigationPath()
@@ -14,14 +15,9 @@ struct SearchView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(NullFeedTheme.background)
-            // Route through a dedicated enum so pushing a video to the player
-            // doesn't collide with the `Video.self` destination that
-            // ChannelDetailView declares for its own rows once it's on the stack.
+            .background(NullFeedBackdrop())
             .navigationDestination(for: SearchDestination.self) { destination in
                 switch destination {
-                case let .player(videoId):
-                    PlayerView(videoId: videoId)
                 case let .channel(channelId):
                     ChannelDetailView(channelId: channelId)
                 }
@@ -68,6 +64,13 @@ struct SearchView: View {
     private func results(_ vm: SearchViewModel) -> some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 40) {
+                ScreenHeaderView(
+                    symbol: "magnifyingglass",
+                    title: "Search Results",
+                    subtitle: resultSubtitle(vm)
+                )
+                .padding(.horizontal, NullFeedTheme.contentPadding)
+
                 if !vm.channels.isEmpty {
                     ContentRowView(title: "Channels") {
                         ForEach(vm.channels) { channel in
@@ -97,13 +100,10 @@ struct SearchView: View {
                 .foregroundStyle(NullFeedTheme.textPrimary)
                 .padding(.horizontal, NullFeedTheme.contentPadding)
 
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.fixed(AppConstants.videoCardWidth), spacing: 40), count: 4),
-                spacing: 40
-            ) {
+            LazyVGrid(columns: NullFeedLayout.videoGridColumns, spacing: NullFeedLayout.gridSpacing) {
                 ForEach(vm.videos) { video in
                     VideoCardView(video: video) {
-                        path.append(SearchDestination.player(videoId: video.id))
+                        appState.openVideo(video.id)
                     }
                     .onAppear {
                         // Reaching the last card pulls the next page.
@@ -123,11 +123,15 @@ struct SearchView: View {
             }
         }
     }
+
+    private func resultSubtitle(_ vm: SearchViewModel) -> String {
+        let total = vm.channels.count + vm.total
+        return "\(total) \(total == 1 ? "match" : "matches") for “\(searchText)”"
+    }
 }
 
-/// Navigation targets reachable from search. A dedicated type keeps the video
-/// destination distinct from `ChannelDetailView`'s own `Video.self` rows.
+/// Browsing destinations stay in Search's stack. Playback is intentionally
+/// presented by RootView above the entire app shell instead.
 private enum SearchDestination: Hashable {
-    case player(videoId: String)
     case channel(channelId: String)
 }
