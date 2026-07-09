@@ -6,12 +6,12 @@ struct VideoListRowView: View {
     @Environment(APIClient.self) private var api
 
     var body: some View {
-        HStack(spacing: 20) {
+        HStack(spacing: 24) {
             // Thumbnail
             ZStack(alignment: .bottomTrailing) {
                 AsyncImageView(
                     url: api.mediaURL(video.thumbnailUrl),
-                    cornerRadius: 8
+                    cornerRadius: 12
                 )
                 .frame(width: 240, height: 135)
                 .clipped()
@@ -35,10 +35,18 @@ struct VideoListRowView: View {
                     .foregroundStyle(NullFeedTheme.textPrimary)
                     .lineLimit(2)
 
-                if !video.channelName.isEmpty {
-                    Text(video.channelName)
-                        .font(NullFeedTheme.bodySmall)
-                        .foregroundStyle(NullFeedTheme.textSecondary)
+                HStack(spacing: 12) {
+                    if let uploadedAt = video.uploadedAt {
+                        Text(uploadedAt.formatted(date: .abbreviated, time: .omitted))
+                            .font(NullFeedTheme.bodySmall)
+                            .foregroundStyle(NullFeedTheme.textMuted)
+                    }
+
+                    if video.durationSeconds > 0 {
+                        Text(video.formattedDuration)
+                            .font(NullFeedTheme.bodySmall)
+                            .foregroundStyle(NullFeedTheme.textMuted)
+                    }
                 }
 
                 HStack(spacing: 12) {
@@ -69,13 +77,22 @@ struct VideoListRowView: View {
 
                 if video.watchProgress > 0 && !video.isWatched {
                     ProgressBarView(progress: video.watchProgress, height: 4)
-                        .frame(maxWidth: 200)
+                        .frame(maxWidth: 360)
                 }
             }
 
             Spacer()
+
+            Image(systemName: "play.circle.fill")
+                .font(.system(size: 38))
+                .foregroundStyle(NullFeedTheme.accent)
+                .padding(.trailing, 8)
         }
-        .padding(16)
+        .padding(18)
         .background(NullFeedTheme.card, in: RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius)
+                .stroke(.white.opacity(0.07), lineWidth: 1)
+        }
     }
 }

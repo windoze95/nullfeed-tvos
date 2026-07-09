@@ -17,8 +17,30 @@ final class APIClient {
         self.storage = storage
     }
 
+    /// Couch-friendly server address normalization. The setup keyboard does not
+    /// need to force users to type a scheme, and a trailing slash must not turn
+    /// every request into `//api/...`.
+    nonisolated static func normalizedServerURL(_ value: String) -> String? {
+        var candidate = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !candidate.isEmpty else { return nil }
+        if !candidate.contains("://") {
+            candidate = "http://\(candidate)"
+        }
+        while candidate.hasSuffix("/") {
+            candidate.removeLast()
+        }
+
+        guard let components = URLComponents(string: candidate),
+              let scheme = components.scheme?.lowercased(),
+              scheme == "http" || scheme == "https",
+              components.host != nil else {
+            return nil
+        }
+        return candidate
+    }
+
     private var baseURL: String {
-        storage.serverUrl ?? "http://localhost:8484"
+        storage.serverUrl.flatMap(Self.normalizedServerURL) ?? "http://localhost:8484"
     }
 
     /// Resolve a possibly-relative media path served by the backend
@@ -418,16 +440,42 @@ final class APIClient {
         return try await get(path)
     }
 
+    // MARK: - Settings
+
+    /// Read-only on Apple TV: exporting and pasting a cookies.txt remains a
+    /// phone/web task, but admins can still see whether age-gated playback is
+    /// configured and healthy from the couch.
+    func getYouTubeAccountStatus() async throws -> YouTubeAccountStatus {
+        try await get(AppConstants.settingsYoutubeCookies)
+    }
+
     // MARK: - Health
 
-    func checkHealth() async -> Bool {
+    func checkHealth(serverURL: String? = nil) async -> Bool {
         do {
-            let request = try buildRequest("GET", path: AppConstants.health)
-            _ = try await perform(request)
-            return true
+            let root: String
+            if let serverURL {
+                guard let normalized = Self.normalizedServerURL(serverURL) else { return false }
+                root = normalized
+            } else {
+                root = baseURL
+            }
+            guard let url = URL(string: "\(root)\(AppConstants.health)") else { return false }
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 10
+            let (_, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else { return false }
+            return (200...299).contains(http.statusCode)
         } catch {
             return false
         }
+    }
+
+    /// Tickets are scoped to one backend. Clear them before reconnecting after
+    /// the user changes the server address in Settings.
+    func resetConnectionState() {
+        playbackTicketCache = nil
+        wsTicketCache = nil
     }
 
     // MARK: - Push Notifications
@@ -500,6 +548,13 @@ struct PushRegistration: Decodable {
 
 private struct BulkSubscribeResponse: Decodable {
     let results: [BulkSubscribeResult]
+}
+
+struct YouTubeAccountStatus: Decodable, Sendable {
+    let configured: Bool
+    let stale: Bool
+    let updatedAt: String?
+    let lastError: String?
 }
 
 /// A minted stream/WS ticket: `{ticket, expires_in}` (seconds).

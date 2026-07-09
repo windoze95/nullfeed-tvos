@@ -94,16 +94,17 @@ All ViewModels use Swift's `@Observable` macro with `@MainActor` isolation. Depe
 | `ChannelDetailViewModel`   | Single channel videos and metadata          |
 | `DiscoverViewModel`        | AI recommendation state                     |
 | `PlayerViewModel`          | Video playback and progressive quality      |
-| `SettingsViewModel`        | Server URL and quality preferences          |
+| `SettingsViewModel`        | Server connection and profile settings      |
 
 ### Navigation
 
-`TabView` with `NavigationStack` provides tab-based navigation across four sections:
+`TabView` with `NavigationStack` provides tab-based navigation across five sections. Playback is presented above the entire app shell, so tabs and browsing navigation are never shown over video:
 
 1. **Home** -- Resume-aware feed with Continue Watching, New Episodes, Recently Added rows
 2. **Library** -- All subscribed channels in a grid layout
 3. **Discover** -- AI-powered channel recommendations
-4. **Settings** -- Server connection, quality preferences, profile management
+4. **Search** -- Voice- and keyboard-friendly search across videos and channels
+5. **Settings** -- Server connection testing/editing and profile management
 
 Deep linking via `nullfeed://` URL schemes enables playback from the Top Shelf and other system surfaces.
 
@@ -131,7 +132,7 @@ On first launch, the app prompts you to enter your NullFeed server address:
 
 - **Server URL**: `http://<server-ip>:8484` (or your custom port)
 
-This is stored locally via UserDefaults and can be changed at any time in **Settings**. The settings screen includes a connection test to verify the backend is reachable.
+This is stored locally via UserDefaults and can be changed at any time in **Settings**. The settings screen validates and tests a new address before saving it.
 
 After connecting, select or create a user profile to begin using the app.
 

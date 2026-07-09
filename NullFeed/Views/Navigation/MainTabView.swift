@@ -1,19 +1,20 @@
 import SwiftUI
 
 struct MainTabView: View {
+    @Environment(AppState.self) private var appState
     @State private var selectedTab = 0
 
     var body: some View {
         TabView(selection: $selectedTab) {
             HomeView()
                 .tabItem {
-                    Label("Home", systemImage: "house.fill")
+                    Label("Home", systemImage: "house")
                 }
                 .tag(0)
 
             LibraryView()
                 .tabItem {
-                    Label("Library", systemImage: "books.vertical.fill")
+                    Label("Library", systemImage: "rectangle.stack")
                 }
                 .tag(1)
 
@@ -31,10 +32,12 @@ struct MainTabView: View {
 
             SettingsView()
                 .tabItem {
-                    Label("Settings", systemImage: "gearshape.fill")
+                    Label("Settings", systemImage: "gearshape")
                 }
                 .tag(4)
         }
+        .id(appState.serverRevision)
         .tint(NullFeedTheme.primary)
+        .background(NullFeedBackdrop())
     }
 }

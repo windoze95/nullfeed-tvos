@@ -8,7 +8,7 @@ struct DiscoverView: View {
     var body: some View {
         NavigationStack {
             ZStack {
-                NullFeedTheme.background.ignoresSafeArea()
+                NullFeedBackdrop()
 
                 if let vm = viewModel {
                     StateView(state: .resolve(
@@ -28,9 +28,12 @@ struct DiscoverView: View {
             }
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Refresh") {
+                    Button {
                         Task { await viewModel?.refreshRecommendations() }
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
                     }
+                    .disabled(viewModel?.isRefreshing == true)
                 }
             }
             .onAppear {
@@ -45,32 +48,44 @@ struct DiscoverView: View {
     @ViewBuilder
     private func recommendationGrid(_ vm: DiscoverViewModel) -> some View {
         ScrollView {
-            LazyVGrid(
-                columns: Array(repeating: GridItem(.fixed(AppConstants.channelCardWidth), spacing: 40), count: 4),
-                spacing: 40
-            ) {
-                ForEach(Array(vm.recommendations.enumerated()), id: \.element.id) { index, rec in
-                    RecommendationCardView(
-                        recommendation: rec,
-                        onSubscribe: {
-                            if let ytId = rec.youtubeChannelId {
-                                Task {
-                                    try? await api.subscribeToChannel(
-                                        url: "https://youtube.com/channel/\(ytId)"
-                                    )
-                                    await vm.dismissRecommendation(rec.id)
+            VStack(alignment: .leading, spacing: 34) {
+                ScreenHeaderView(
+                    symbol: "sparkles",
+                    title: "Discover",
+                    subtitle: "Fresh channels picked for your profile"
+                )
+
+                LazyVGrid(columns: NullFeedLayout.channelGridColumns, spacing: NullFeedLayout.gridSpacing) {
+                    ForEach(Array(vm.recommendations.enumerated()), id: \.element.id) { index, rec in
+                        RecommendationCardView(
+                            recommendation: rec,
+                            onSubscribe: {
+                                if let ytId = rec.youtubeChannelId {
+                                    Task {
+                                        do {
+                                            try await api.subscribeToChannel(
+                                                url: "https://youtube.com/channel/\(ytId)"
+                                            )
+                                            await vm.dismissRecommendation(rec.id)
+                                        } catch {
+                                            vm.error = error.localizedDescription
+                                        }
+                                    }
                                 }
+                            },
+                            onDismiss: {
+                                Task { await vm.dismissRecommendation(rec.id) }
                             }
-                        },
-                        onDismiss: {
-                            Task { await vm.dismissRecommendation(rec.id) }
-                        }
-                    )
-                    .prefersDefaultFocus(index == 0, in: gridFocus)
+                        )
+                        .prefersDefaultFocus(index == 0, in: gridFocus)
+                    }
                 }
             }
-            .padding(NullFeedTheme.contentPadding)
+            .padding(.horizontal, NullFeedTheme.contentPadding)
+            .padding(.top, 38)
+            .padding(.bottom, NullFeedTheme.contentPadding)
             .focusScope(gridFocus)
         }
+        .scrollClipDisabled()
     }
 }

@@ -4,12 +4,13 @@ struct ChannelDetailView: View {
     let channelId: String
     @Environment(APIClient.self) private var api
     @Environment(QueueViewModel.self) private var queue
+    @Environment(AppState.self) private var appState
     @State private var viewModel: ChannelDetailViewModel?
     @Namespace private var listFocus
 
     var body: some View {
         ZStack {
-            NullFeedTheme.background.ignoresSafeArea()
+            NullFeedBackdrop()
 
             if let vm = viewModel {
                 if vm.isLoading && vm.channel == nil {
@@ -51,15 +52,13 @@ struct ChannelDetailView: View {
                 }
             }
             ToolbarItem(placement: .topBarTrailing) {
-                Button("Refresh") {
+                Button {
                     Task { await viewModel?.refresh(channelId: channelId) }
+                } label: {
+                    Label("Refresh", systemImage: "arrow.clockwise")
                 }
+                .disabled(viewModel?.isRefreshing == true)
             }
-        }
-        .navigationDestination(for: Video.self) { video in
-            // Every episode plays on selection — a not-yet-cached one starts via
-            // instant-stream (the player handles it).
-            PlayerView(videoId: video.id)
         }
         .onAppear {
             if viewModel == nil {
@@ -77,27 +76,57 @@ struct ChannelDetailView: View {
             VStack(alignment: .leading, spacing: 30) {
                 // Banner header
                 ZStack(alignment: .bottomLeading) {
-                    AsyncImageView(url: channel.bannerUrl, cornerRadius: 0)
-                        .frame(height: 300)
-                        .clipped()
+                    Group {
+                        if let bannerUrl = channel.bannerUrl {
+                            AsyncImageView(url: api.mediaURL(bannerUrl), cornerRadius: 0)
+                        } else {
+                            LinearGradient(
+                                colors: [NullFeedTheme.cardHover, NullFeedTheme.background],
+                                startPoint: .topLeading,
+                                endPoint: .bottomTrailing
+                            )
+                        }
+                    }
+                    .frame(height: 320)
+                    .clipped()
 
                     LinearGradient(
-                        colors: [.clear, NullFeedTheme.background],
+                        colors: [.clear, NullFeedTheme.background.opacity(0.96)],
                         startPoint: .top,
                         endPoint: .bottom
                     )
-                    .frame(height: 150)
+                    .frame(height: 210)
 
-                    HStack(spacing: 20) {
-                        AsyncImageView(url: channel.avatarUrl, cornerRadius: 30)
-                            .frame(width: 60, height: 60)
+                    HStack(alignment: .bottom, spacing: 24) {
+                        AsyncImageView(url: api.mediaURL(channel.avatarUrl), cornerRadius: 42)
+                            .frame(width: 84, height: 84)
+                            .overlay {
+                                ZStack {
+                                    Circle().stroke(.white.opacity(0.16), lineWidth: 2)
+                                    if channel.avatarUrl?.isEmpty != false {
+                                        Text(channel.name.prefix(1).uppercased())
+                                            .font(NullFeedTheme.headlineSmall)
+                                            .foregroundStyle(NullFeedTheme.accent)
+                                    }
+                                }
+                            }
 
-                        Text(channel.name)
-                            .font(NullFeedTheme.headlineMedium)
-                            .foregroundStyle(NullFeedTheme.textPrimary)
+                        VStack(alignment: .leading, spacing: 8) {
+                            Text(channel.name)
+                                .font(NullFeedTheme.headlineMedium)
+                                .foregroundStyle(NullFeedTheme.textPrimary)
+
+                            if let description = channel.description, !description.isEmpty {
+                                Text(description)
+                                    .font(NullFeedTheme.bodySmall)
+                                    .foregroundStyle(NullFeedTheme.textSecondary)
+                                    .lineLimit(2)
+                                    .frame(maxWidth: 1050, alignment: .leading)
+                            }
+                        }
                     }
                     .padding(.horizontal, NullFeedTheme.contentPadding)
-                    .padding(.bottom, 20)
+                    .padding(.bottom, 24)
                 }
 
                 // Videos
@@ -110,7 +139,7 @@ struct ChannelDetailView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.top, 60)
                 } else {
-                    LazyVStack(spacing: 8) {
+                    LazyVStack(spacing: 14) {
                         ForEach(Array(vm.videos.enumerated()), id: \.element.id) { index, video in
                             videoRow(vm: vm, video: video)
                                 .buttonStyle(CardButtonStyle())
@@ -119,10 +148,12 @@ struct ChannelDetailView: View {
                         }
                     }
                     .padding(.horizontal, NullFeedTheme.contentPadding)
+                    .padding(.bottom, NullFeedTheme.contentPadding)
                     .focusScope(listFocus)
                 }
             }
         }
+        .scrollClipDisabled()
     }
 
     /// Every episode plays on selection — a not-yet-cached one starts via
@@ -130,7 +161,11 @@ struct ChannelDetailView: View {
     /// download/actions path.
     @ViewBuilder
     private func videoRow(vm: ChannelDetailViewModel, video: Video) -> some View {
-        NavigationLink(value: video) { VideoListRowView(video: video) }
+        Button {
+            appState.openVideo(video.id)
+        } label: {
+            VideoListRowView(video: video)
+        }
     }
 
     /// Long-press menu: watch-later only (caching is automatic/invisible).
@@ -140,13 +175,13 @@ struct ChannelDetailView: View {
             Button(role: .destructive) {
                 Task { await queue.remove(video.id) }
             } label: {
-                Label("Remove from Queue", systemImage: "minus.circle")
+                Label("Remove from Up Next", systemImage: "minus.circle")
             }
         } else {
             Button {
                 Task { await queue.add(video) }
             } label: {
-                Label("Add to Queue", systemImage: "plus.circle")
+                Label("Add to Up Next", systemImage: "plus.circle")
             }
         }
     }

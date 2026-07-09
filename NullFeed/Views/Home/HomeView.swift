@@ -3,6 +3,7 @@ import SwiftUI
 struct HomeView: View {
     @Environment(APIClient.self) private var api
     @Environment(WebSocketClient.self) private var webSocket
+    @Environment(AppState.self) private var appState
     @State private var viewModel: HomeViewModel?
     @State private var path = NavigationPath()
     @Namespace private var feedFocus
@@ -18,7 +19,7 @@ struct HomeView: View {
                         empty: (
                             icon: "play.rectangle.on.rectangle",
                             title: "Nothing Here Yet",
-                            subtitle: "Subscribe to channels and download videos to start watching."
+                            subtitle: "Subscribe to channels to start watching."
                         ),
                         retry: { Task { await viewModel.loadFeed() } }
                     )) {
@@ -27,35 +28,42 @@ struct HomeView: View {
                 }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
-            .background(NullFeedTheme.background)
+            .background(NullFeedBackdrop())
             .toolbar {
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Up Next") {
+                    Button {
                         path.append(HomeRoute.queue)
+                    } label: {
+                        Label("Up Next", systemImage: "rectangle.stack.badge.play")
                     }
                 }
                 ToolbarItem(placement: .topBarTrailing) {
-                    Button("Refresh") {
+                    Button {
                         Task { await viewModel?.refresh() }
+                    } label: {
+                        Label("Refresh", systemImage: "arrow.clockwise")
                     }
+                    .disabled(viewModel?.isRefreshing == true)
                 }
-            }
-            .navigationDestination(for: Video.self) { video in
-                PlayerView(videoId: video.id)
             }
             .navigationDestination(for: HomeRoute.self) { route in
                 switch route {
                 case .queue:
-                    QueueView(onPlay: { path.append($0) })
+                    QueueView()
                 }
             }
             .onChange(of: path.count) { _, newCount in
-                // Returning to the Home root (e.g. exiting the player) reloads the
-                // feed so Continue Watching reflects the position saved on exit,
-                // even if the live progress_updated event was missed (e.g. a brief
-                // WebSocket drop). A reload with content already on screen swaps in
-                // place without a loading flash.
+                // Returning from Up Next may have changed queue/feed state. A
+                // reload with content already on screen swaps in place without a
+                // loading flash.
                 if newCount == 0 {
+                    Task { await viewModel?.loadFeed() }
+                }
+            }
+            .onChange(of: appState.presentedVideo) { oldValue, newValue in
+                // Playback is no longer a navigation-stack entry, so refresh the
+                // resume rows when the root-level cover goes away.
+                if oldValue != nil, newValue == nil {
                     Task { await viewModel?.loadFeed() }
                 }
             }
@@ -93,12 +101,20 @@ struct HomeView: View {
             ?? viewModel.recommendations.first?.id
 
         ScrollView(.vertical, showsIndicators: false) {
-            VStack(alignment: .leading, spacing: 40) {
+            VStack(alignment: .leading, spacing: 16) {
+                ScreenHeaderView(
+                    symbol: "play.rectangle.on.rectangle.fill",
+                    title: "NullFeed",
+                    subtitle: homeSubtitle
+                )
+                .padding(.horizontal, NullFeedTheme.contentPadding)
+                .padding(.bottom, 12)
+
                 if !viewModel.continueWatching.isEmpty {
                     ContentRowView(title: "Continue Watching") {
                         ForEach(viewModel.continueWatching) { item in
                             VideoCardView(feedItem: item) {
-                                path.append(item.video)
+                                appState.openVideo(item.video.id)
                             }
                             .prefersDefaultFocus(item.id == firstFocusID, in: feedFocus)
                         }
@@ -109,7 +125,7 @@ struct HomeView: View {
                     ContentRowView(title: "New Episodes") {
                         ForEach(viewModel.newEpisodes) { item in
                             VideoCardView(feedItem: item) {
-                                path.append(item.video)
+                                appState.openVideo(item.video.id)
                             }
                             .prefersDefaultFocus(item.id == firstFocusID, in: feedFocus)
                         }
@@ -120,7 +136,7 @@ struct HomeView: View {
                     ContentRowView(title: "Recently Added") {
                         ForEach(viewModel.recentlyAdded) { item in
                             VideoCardView(feedItem: item) {
-                                path.append(item.video)
+                                appState.openVideo(item.video.id)
                             }
                             .prefersDefaultFocus(item.id == firstFocusID, in: feedFocus)
                         }
@@ -137,10 +153,15 @@ struct HomeView: View {
                                 onSubscribe: {
                                     if let ytId = rec.youtubeChannelId {
                                         Task {
-                                            try? await api.subscribeToChannel(
-                                                url: "https://youtube.com/channel/\(ytId)"
-                                            )
-                                            await viewModel.dismissRecommendation(rec.id)
+                                            do {
+                                                try await api.subscribeToChannel(
+                                                    url: "https://youtube.com/channel/\(ytId)"
+                                                )
+                                                await viewModel.dismissRecommendation(rec.id)
+                                            } catch {
+                                                // Keep the recommendation visible so the
+                                                // viewer can retry when connectivity returns.
+                                            }
                                         }
                                     }
                                 },
@@ -154,9 +175,17 @@ struct HomeView: View {
                     }
                 }
             }
-            .padding(.vertical, NullFeedTheme.contentPadding)
+            .padding(.top, 38)
+            .padding(.bottom, NullFeedTheme.contentPadding)
             .focusScope(feedFocus)
         }
+    }
+
+    private var homeSubtitle: String {
+        guard let name = appState.currentUser?.displayName, !name.isEmpty else {
+            return "Your videos, ready when you are"
+        }
+        return "Welcome back, \(name)"
     }
 }
 

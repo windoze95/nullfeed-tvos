@@ -5,6 +5,8 @@ struct RecommendationCardView: View {
     let onSubscribe: () -> Void
     let onDismiss: () -> Void
 
+    @Environment(APIClient.self) private var api
+
     private enum Action: Hashable { case subscribe, dismiss }
     @FocusState private var focusedAction: Action?
 
@@ -12,10 +14,28 @@ struct RecommendationCardView: View {
         VStack(alignment: .leading, spacing: 16) {
             // Banner / Avatar
             ZStack(alignment: .bottomLeading) {
-                AsyncImageView(
-                    url: recommendation.bannerUrl ?? recommendation.avatarUrl,
-                    cornerRadius: 0
-                )
+                Group {
+                    if let bannerUrl = recommendation.bannerUrl {
+                        AsyncImageView(url: api.mediaURL(bannerUrl), cornerRadius: 0)
+                    } else {
+                        LinearGradient(
+                            colors: [NullFeedTheme.cardHover, NullFeedTheme.surface],
+                            startPoint: .topLeading,
+                            endPoint: .bottomTrailing
+                        )
+                        .overlay {
+                            AsyncImageView(url: api.mediaURL(recommendation.avatarUrl), cornerRadius: 44)
+                                .frame(width: 88, height: 88)
+                                .overlay {
+                                    if recommendation.avatarUrl?.isEmpty != false {
+                                        Text(recommendation.channelName.prefix(1).uppercased())
+                                            .font(NullFeedTheme.headlineSmall)
+                                            .foregroundStyle(NullFeedTheme.accent)
+                                    }
+                                }
+                        }
+                    }
+                }
                 .frame(height: 140)
                 .clipped()
 
@@ -35,13 +55,13 @@ struct RecommendationCardView: View {
             }
 
             // Reasoning
-            if let reason = recommendation.reason, !reason.isEmpty {
-                Text(reason)
-                    .font(NullFeedTheme.bodySmall)
-                    .foregroundStyle(NullFeedTheme.textSecondary)
-                    .lineLimit(3)
-                    .padding(.horizontal, 12)
-            }
+            Text(reasonText)
+                .font(NullFeedTheme.bodySmall)
+                .foregroundStyle(NullFeedTheme.textSecondary)
+                .lineLimit(3)
+                .padding(.horizontal, 14)
+
+            Spacer(minLength: 0)
 
             // Actions
             HStack(spacing: 16) {
@@ -50,6 +70,7 @@ struct RecommendationCardView: View {
                         .font(NullFeedTheme.caption)
                 }
                 .tint(NullFeedTheme.primary)
+                .disabled(recommendation.youtubeChannelId == nil)
                 .focused($focusedAction, equals: .subscribe)
 
                 Button(action: onDismiss) {
@@ -59,13 +80,25 @@ struct RecommendationCardView: View {
                 .tint(NullFeedTheme.textMuted)
                 .focused($focusedAction, equals: .dismiss)
             }
-            .padding(.horizontal, 12)
-            .padding(.bottom, 12)
+            .padding(.horizontal, 14)
+            .padding(.bottom, 14)
         }
+        .frame(width: AppConstants.channelCardWidth, height: 340, alignment: .top)
         .background(NullFeedTheme.card)
         .clipShape(RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius))
+        .overlay {
+            RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius)
+                .stroke(.white.opacity(0.08), lineWidth: 1)
+        }
         // Lift the whole card when either action is focused, so it's clear which
         // recommendation the remote is on from across the room (issue #4).
         .cardFocusStyle(isFocused: focusedAction != nil)
+    }
+
+    private var reasonText: String {
+        guard let reason = recommendation.reason, !reason.isEmpty else {
+            return "Recommended from the channels you watch."
+        }
+        return reason
     }
 }

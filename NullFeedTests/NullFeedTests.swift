@@ -2,6 +2,37 @@ import XCTest
 @testable import NullFeed
 
 final class NullFeedTests: XCTestCase {
+    func testServerURLNormalization() {
+        XCTAssertEqual(
+            APIClient.normalizedServerURL(" 192.168.1.20:8484/ "),
+            "http://192.168.1.20:8484"
+        )
+        XCTAssertEqual(
+            APIClient.normalizedServerURL("https://nullfeed.example.com///"),
+            "https://nullfeed.example.com"
+        )
+        XCTAssertNil(APIClient.normalizedServerURL(""))
+        XCTAssertNil(APIClient.normalizedServerURL("ftp://example.com"))
+        XCTAssertNil(APIClient.normalizedServerURL("not a server"))
+    }
+
+    func testYouTubeAccountStatusDecoding() throws {
+        let json = """
+        {
+            "configured": true,
+            "stale": true,
+            "updated_at": "2026-07-09T12:00:00+00:00",
+            "last_error": "Sign in again"
+        }
+        """.data(using: .utf8)!
+
+        let status = try JSONDecoder.nullFeed.decode(YouTubeAccountStatus.self, from: json)
+        XCTAssertTrue(status.configured)
+        XCTAssertTrue(status.stale)
+        XCTAssertEqual(status.updatedAt, "2026-07-09T12:00:00+00:00")
+        XCTAssertEqual(status.lastError, "Sign in again")
+    }
+
     func testVideoStatusDecoding() throws {
         let json = """
         {
@@ -511,6 +542,24 @@ final class NullFeedTests: XCTestCase {
         XCTAssertEqual(queue.videoAfter("q-2")?.id, "q-3")
         XCTAssertNil(queue.videoAfter("q-3"), "the last item has no successor")
         XCTAssertNil(queue.videoAfter("missing"), "an unqueued video has no successor")
+    }
+
+    @MainActor
+    func testQueueResetDropsProfileScopedState() throws {
+        let queue = QueueViewModel(api: APIClient(storage: StorageService()))
+        queue.items = [try makeVideo(id: "old-profile")]
+        queue.total = 1
+        queue.isLoading = true
+        queue.isLoadingMore = true
+        queue.error = "stale error"
+
+        queue.reset()
+
+        XCTAssertTrue(queue.items.isEmpty)
+        XCTAssertEqual(queue.total, 0)
+        XCTAssertFalse(queue.isLoading)
+        XCTAssertFalse(queue.isLoadingMore)
+        XCTAssertNil(queue.error)
     }
 
     // MARK: - Resume prompt

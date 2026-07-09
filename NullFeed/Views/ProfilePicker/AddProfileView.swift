@@ -35,7 +35,7 @@ struct AddProfileView: View {
             .frame(maxWidth: .infinity)
             .padding(NullFeedTheme.contentPadding)
         }
-        .background(NullFeedTheme.background)
+        .background(NullFeedBackdrop())
         .sheet(isPresented: $showPinSheet) {
             SetPinView(
                 canRemove: viewModel.pin != nil,
@@ -98,7 +98,7 @@ struct AddProfileView: View {
                     .foregroundStyle(NullFeedTheme.textPrimary)
                     .clipShape(RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius))
                 }
-                .buttonStyle(.plain)
+                .buttonStyle(CardButtonStyle())
                 .disabled(lookupDisabled)
             }
 
@@ -163,7 +163,7 @@ struct AddProfileView: View {
                 .foregroundStyle(NullFeedTheme.textPrimary)
                 .clipShape(RoundedRectangle(cornerRadius: NullFeedTheme.cardRadius))
             }
-            .buttonStyle(.plain)
+            .buttonStyle(CardButtonStyle())
             .disabled(!viewModel.canCreate)
         }
         .frame(maxWidth: .infinity)
@@ -274,7 +274,7 @@ struct AddProfileView: View {
                     .font(NullFeedTheme.titleMedium)
                     .foregroundStyle(NullFeedTheme.textMuted)
             }
-            .buttonStyle(.plain)
+            .buttonStyle(.bordered)
             .disabled(viewModel.isCreating)
         }
         .padding(20)

@@ -10,18 +10,21 @@ struct ContentRowView<Content: View>: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 16) {
+        VStack(alignment: .leading, spacing: 8) {
             Text(title)
                 .font(NullFeedTheme.headlineSmall)
                 .foregroundStyle(NullFeedTheme.textPrimary)
                 .padding(.horizontal, NullFeedTheme.contentPadding)
 
             ScrollView(.horizontal, showsIndicators: false) {
-                HStack(spacing: 24) {
+                HStack(spacing: 30) {
                     content()
                 }
                 .padding(.horizontal, NullFeedTheme.contentPadding)
+                .padding(.vertical, 22)
             }
+            .scrollClipDisabled()
         }
+        .focusSection()
     }
 }

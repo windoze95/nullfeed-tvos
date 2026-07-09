@@ -53,7 +53,7 @@ struct PinEntryView: View {
         }
         .padding(60)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(NullFeedTheme.background)
+        .background(NullFeedBackdrop())
     }
 
     private func submit() {

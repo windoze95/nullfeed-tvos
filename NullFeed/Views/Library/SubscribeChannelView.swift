@@ -23,6 +23,8 @@ struct SubscribeChannelView: View {
                     .textFieldStyle(.plain)
                     .padding()
                     .background(NullFeedTheme.card, in: RoundedRectangle(cornerRadius: 8))
+                    .autocorrectionDisabled()
+                    .onSubmit { subscribe() }
             }
 
             Picker("Tracking Mode", selection: $trackingMode) {
@@ -37,12 +39,7 @@ struct SubscribeChannelView: View {
                 }
 
                 Button("Subscribe") {
-                    isSubscribing = true
-                    Task {
-                        await viewModel.subscribeToChannel(url: youtubeUrl, trackingMode: trackingMode)
-                        isSubscribing = false
-                        onDismiss()
-                    }
+                    subscribe()
                 }
                 .disabled(youtubeUrl.isEmpty || isSubscribing)
             }
@@ -55,6 +52,20 @@ struct SubscribeChannelView: View {
         }
         .padding(NullFeedTheme.contentPadding)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(NullFeedTheme.background)
+        .background(NullFeedBackdrop())
+    }
+
+    private func subscribe() {
+        let trimmed = youtubeUrl.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, !isSubscribing else { return }
+        isSubscribing = true
+        Task {
+            let succeeded = await viewModel.subscribeToChannel(
+                url: trimmed,
+                trackingMode: trackingMode
+            )
+            isSubscribing = false
+            if succeeded { onDismiss() }
+        }
     }
 }

@@ -24,16 +24,16 @@ final class AuthViewModel {
     }
 
     func connectToServer() async {
-        let trimmed = serverUrl.trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !trimmed.isEmpty else {
-            error = "Please enter a server URL"
+        guard let normalized = APIClient.normalizedServerURL(serverUrl) else {
+            error = "Enter a valid server address"
             return
         }
 
         isLoading = true
         error = nil
 
-        storage.serverUrl = trimmed
+        serverUrl = normalized
+        storage.serverUrl = normalized
 
         let healthy = await api.checkHealth()
         guard healthy else {

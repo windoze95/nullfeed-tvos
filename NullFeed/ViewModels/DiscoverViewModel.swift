@@ -5,6 +5,7 @@ import Foundation
 final class DiscoverViewModel {
     var recommendations: [Recommendation] = []
     var isLoading = false
+    var isRefreshing = false
     var error: String?
 
     private let api: APIClient
@@ -34,6 +35,9 @@ final class DiscoverViewModel {
     }
 
     func refreshRecommendations() async {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+        defer { isRefreshing = false }
         do {
             try await api.refreshRecommendations()
             await loadRecommendations()

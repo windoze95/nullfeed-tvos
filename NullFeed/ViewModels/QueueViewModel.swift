@@ -23,6 +23,10 @@ final class QueueViewModel {
     /// Whether a first load has completed, so `ensureLoaded()` only fetches once
     /// for callers that just need membership.
     private var hasLoaded = false
+    /// Invalidates in-flight work across profile or server switches. A request
+    /// started for the previous session may still finish, but it must never
+    /// repopulate or roll back the new profile's queue.
+    private var generation = 0
 
     init(api: APIClient) {
         self.api = api
@@ -30,6 +34,19 @@ final class QueueViewModel {
 
     var isEmpty: Bool { items.isEmpty }
     var canLoadMore: Bool { nextCursor != nil }
+
+    /// Drop membership and pagination from the previous backend when Settings
+    /// switches origins. New cards will lazily load the fresh queue once.
+    func reset() {
+        generation += 1
+        items = []
+        total = 0
+        nextCursor = nil
+        hasLoaded = false
+        isLoading = false
+        isLoadingMore = false
+        error = nil
+    }
 
     func isQueued(_ id: String) -> Bool {
         items.contains { $0.id == id }
@@ -46,19 +63,24 @@ final class QueueViewModel {
     /// Reload the first page. Used by the Queue surface on appear so it reflects
     /// items watched or removed since the last visit.
     func load() async {
+        let requestGeneration = generation
         isLoading = true
         error = nil
+        defer {
+            if requestGeneration == generation { isLoading = false }
+        }
         do {
             let page = try await api.getQueue(cursor: nil)
+            guard requestGeneration == generation else { return }
             items = page.items
             total = page.total
             nextCursor = page.nextCursor
             hasLoaded = true
             prewarmPreviews(for: items)
         } catch {
+            guard requestGeneration == generation else { return }
             self.error = error.localizedDescription
         }
-        isLoading = false
     }
 
     /// Best-effort: pre-generate previews for queued videos that aren't already
@@ -82,27 +104,33 @@ final class QueueViewModel {
     /// Append the next page, if any. A load-more failure keeps what's on screen.
     func loadMore() async {
         guard let cursor = nextCursor, !isLoadingMore, !isLoading else { return }
+        let requestGeneration = generation
         isLoadingMore = true
+        defer {
+            if requestGeneration == generation { isLoadingMore = false }
+        }
         do {
             let page = try await api.getQueue(cursor: cursor)
+            guard requestGeneration == generation else { return }
             items.append(contentsOf: page.items)
             total = page.total
             nextCursor = page.nextCursor
         } catch {
             // Keep the current results; the user can scroll to retry.
         }
-        isLoadingMore = false
     }
 
     /// Optimistically add a video to the back of the queue, rolling back if the
     /// request fails.
     func add(_ video: Video) async {
         guard !isQueued(video.id) else { return }
+        let requestGeneration = generation
         items.append(video)
         total += 1
         do {
             try await api.addToQueue(video.id)
         } catch {
+            guard requestGeneration == generation else { return }
             items.removeAll { $0.id == video.id }
             total = max(0, total - 1)
             self.error = error.localizedDescription
@@ -112,6 +140,7 @@ final class QueueViewModel {
     /// Optimistically remove a video from the queue, restoring it in place if the
     /// request fails.
     func remove(_ id: String) async {
+        let requestGeneration = generation
         guard let index = items.firstIndex(where: { $0.id == id }) else {
             // Not in our (possibly partial) list; still issue the idempotent
             // delete so the server drops it.
@@ -123,6 +152,7 @@ final class QueueViewModel {
         do {
             try await api.removeFromQueue(id)
         } catch {
+            guard requestGeneration == generation else { return }
             items.insert(removed, at: min(index, items.count))
             total += 1
             self.error = error.localizedDescription

@@ -99,6 +99,13 @@ struct PlayerView: View {
         .onDisappear {
             viewModel?.cleanup()
         }
+        .onExitCommand {
+            // Playback is a root-level cover rather than a navigation-stack
+            // destination. Menu still exits immediately, without revealing app
+            // chrome inside the player first.
+            viewModel?.cleanup()
+            dismiss()
+        }
     }
 }
 
