@@ -1,8 +1,8 @@
 import SwiftUI
 
-/// The watch-later queue ("Up Next"), reached from Home. Lists the queued videos
-/// as the shared cards with the standard focus treatment; selecting one plays it
-/// and each card's context menu can remove it. It reads the app-level
+/// The watch-later queue ("Up Next"), exposed as a first-class tab. Lists the
+/// queued videos as the shared cards with the standard focus treatment;
+/// selecting one plays it and each card's context menu can remove it. It reads the app-level
 /// `QueueViewModel`, so removals here and the player's auto-advance stay in sync.
 struct QueueView: View {
     @Environment(QueueViewModel.self) private var queue

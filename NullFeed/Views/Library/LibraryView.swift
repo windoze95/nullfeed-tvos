@@ -12,17 +12,21 @@ struct LibraryView: View {
                 NullFeedBackdrop()
 
                 if let vm = viewModel {
-                    StateView(state: .resolve(
-                        isLoading: vm.isLoading,
-                        isEmpty: vm.channels.isEmpty,
-                        error: vm.error,
-                        empty: (
-                            icon: "books.vertical",
-                            title: "No Channels",
-                            subtitle: "Subscribe to a YouTube channel to get started"
+                    StateView(
+                        state: .resolve(
+                            isLoading: vm.isLoading,
+                            isEmpty: vm.channels.isEmpty,
+                            error: vm.error,
+                            empty: (
+                                icon: "books.vertical",
+                                title: "No Channels Yet",
+                                subtitle: "Add a YouTube channel to start building your library."
+                            ),
+                            retry: { Task { await vm.loadChannels() } }
                         ),
-                        retry: { Task { await vm.loadChannels() } }
-                    )) {
+                        emptyActionTitle: "Add Channel",
+                        emptyAction: { showSubscribe = true }
+                    ) {
                         channelGrid(vm)
                     }
                 }
@@ -69,7 +73,7 @@ struct LibraryView: View {
             VStack(alignment: .leading, spacing: 34) {
                 ScreenHeaderView(
                     symbol: "rectangle.stack.fill",
-                    title: "Library",
+                    title: "Channels",
                     subtitle: "\(vm.channels.count) subscribed \(vm.channels.count == 1 ? "channel" : "channels")"
                 )
 

@@ -6,18 +6,10 @@ struct ChannelCardView: View {
 
     var body: some View {
         ZStack(alignment: .bottomLeading) {
-            if let bannerUrl = channel.bannerUrl {
-                AsyncImageView(
-                    url: api.mediaURL(bannerUrl),
-                    cornerRadius: NullFeedTheme.cardRadius
-                )
-            } else {
-                LinearGradient(
-                    colors: [NullFeedTheme.cardHover, NullFeedTheme.surface],
-                    startPoint: .topLeading,
-                    endPoint: .bottomTrailing
-                )
-            }
+            CinematicBannerView(
+                url: api.mediaURL(channel.bannerUrl),
+                showSharpArtwork: false
+            )
 
             LinearGradient(
                 colors: [.clear, .black.opacity(0.88)],

@@ -31,14 +31,34 @@ extension LoadState {
 /// `content` only once there is something to display.
 struct StateView<Content: View>: View {
     let state: LoadState
+    let emptyActionTitle: String?
+    let emptyAction: (() -> Void)?
     @ViewBuilder let content: () -> Content
+
+    init(
+        state: LoadState,
+        emptyActionTitle: String? = nil,
+        emptyAction: (() -> Void)? = nil,
+        @ViewBuilder content: @escaping () -> Content
+    ) {
+        self.state = state
+        self.emptyActionTitle = emptyActionTitle
+        self.emptyAction = emptyAction
+        self.content = content
+    }
 
     var body: some View {
         switch state {
         case .loading:
             LoadingView()
         case let .empty(icon, title, subtitle):
-            EmptyStateView(iconName: icon, title: title, subtitle: subtitle)
+            EmptyStateView(
+                iconName: icon,
+                title: title,
+                subtitle: subtitle,
+                actionTitle: emptyActionTitle,
+                action: emptyAction
+            )
         case let .error(message, retry):
             ErrorStateView(message: message, retry: retry)
         case .content:

@@ -76,17 +76,7 @@ struct ChannelDetailView: View {
             VStack(alignment: .leading, spacing: 30) {
                 // Banner header
                 ZStack(alignment: .bottomLeading) {
-                    Group {
-                        if let bannerUrl = channel.bannerUrl {
-                            AsyncImageView(url: api.mediaURL(bannerUrl), cornerRadius: 0)
-                        } else {
-                            LinearGradient(
-                                colors: [NullFeedTheme.cardHover, NullFeedTheme.background],
-                                startPoint: .topLeading,
-                                endPoint: .bottomTrailing
-                            )
-                        }
-                    }
+                    CinematicBannerView(url: api.mediaURL(channel.bannerUrl))
                     .frame(height: 320)
                     .clipped()
 

@@ -12,29 +12,37 @@ struct MainTabView: View {
                 }
                 .tag(0)
 
+            NavigationStack {
+                QueueView()
+            }
+            .tabItem {
+                Label("Up Next", systemImage: "rectangle.stack.badge.play")
+            }
+            .tag(1)
+
             LibraryView()
                 .tabItem {
-                    Label("Library", systemImage: "rectangle.stack")
+                    Label("Channels", systemImage: "rectangle.stack")
                 }
-                .tag(1)
+                .tag(2)
 
             DiscoverView()
                 .tabItem {
-                    Label("Discover", systemImage: "sparkles")
+                    Label("Explore", systemImage: "sparkles")
                 }
-                .tag(2)
+                .tag(3)
 
             SearchView()
                 .tabItem {
                     Label("Search", systemImage: "magnifyingglass")
                 }
-                .tag(3)
+                .tag(4)
 
             SettingsView()
                 .tabItem {
                     Label("Settings", systemImage: "gearshape")
                 }
-                .tag(4)
+                .tag(5)
         }
         .id(appState.serverRevision)
         .tint(NullFeedTheme.primary)
