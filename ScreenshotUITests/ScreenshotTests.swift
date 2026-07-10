@@ -22,12 +22,13 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
-    /// Menu jumps focus to the tab bar; walk to the leftmost tab, then right
-    /// to the wanted index. Blind by design — element focus queries throw when
-    /// the element is missing, and tab order is stable (see MainTabView).
+    /// Walk focus up to the tab bar (`.up` is idempotent there — unlike
+    /// `.menu`, which exits the app when the tab bar already has focus),
+    /// rewind to the leftmost tab, then step right to the wanted index.
+    /// Blind by design — focus queries throw when an element is missing,
+    /// and the tab order is stable (see MainTabView).
     private func focusTab(index: Int) {
-        press(.menu)
-        Thread.sleep(forTimeInterval: 0.8)
+        press(.up, times: 4, delay: 0.5)
         press(.left, times: 6, delay: 0.35)
         if index > 0 {
             press(.right, times: index, delay: 0.5)
@@ -93,17 +94,21 @@ final class ScreenshotTests: XCTestCase {
         Thread.sleep(forTimeInterval: 4)
         capture("library")
 
-        // 4. Explore (discover)
-        focusTab(index: 3)
+        // 4. Explore (discover) — step along the tab bar, no re-entry needed.
+        press(.right)
         Thread.sleep(forTimeInterval: 6)
         capture("discover")
 
-        // 5. Channel detail: back to Channels, into the grid, open first channel.
-        focusTab(index: 2)
+        // 5. Channel detail: back to Channels, into the grid, open Blender
+        // Studio (leftmost card — the channel whose films are downloaded).
+        // The first .down lands on the refresh/add buttons row.
+        press(.left)
         Thread.sleep(forTimeInterval: 2)
-        press(.down)             // move focus into the channel grid
+        press(.down, times: 2, delay: 0.8)
+        press(.left, times: 3, delay: 0.5)
         Thread.sleep(forTimeInterval: 1)
-        press(.select)           // open focused channel
+        capture("library_focused")
+        press(.select)
         Thread.sleep(forTimeInterval: 6)
         capture("channel_detail")
 
