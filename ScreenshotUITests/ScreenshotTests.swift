@@ -116,6 +116,12 @@ final class ScreenshotTests: XCTestCase {
         press(.down)
         Thread.sleep(forTimeInterval: 1)
         press(.select)
+        Thread.sleep(forTimeInterval: 3)
+        // Videos with saved progress interpose a Resume Watching? dialog with
+        // "Resume at m:ss" already focused.
+        if app.buttons["Start Over"].exists {
+            press(.select)
+        }
         Thread.sleep(forTimeInterval: 12)  // buffer + controls auto-hide
         capture("player_clean")
         press(.down)             // reveal transport/info controls
