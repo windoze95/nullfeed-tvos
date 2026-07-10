@@ -3,20 +3,16 @@
 // (capture_server.py on :8766) to grab the simulator framebuffer.
 import XCTest
 
+@MainActor
 final class ScreenshotTests: XCTestCase {
 
-    let remote = XCUIRemote.shared
+    private var remote: XCUIRemote { XCUIRemote.shared }
 
-    override func setUpWithError() throws {
-        continueAfterFailure = false
-    }
-
+    /// Blocking GET keeps this free of Sendable/actor friction; the helper
+    /// captures the framebuffer before responding.
     private func capture(_ name: String) {
         Thread.sleep(forTimeInterval: 1.0)
-        let exp = expectation(description: "capture-\(name)")
-        let url = URL(string: "http://localhost:8766/capture/\(name)")!
-        URLSession.shared.dataTask(with: url) { _, _, _ in exp.fulfill() }.resume()
-        wait(for: [exp], timeout: 20)
+        _ = try? Data(contentsOf: URL(string: "http://localhost:8766/capture/\(name)")!)
     }
 
     private func press(_ button: XCUIRemote.Button, times: Int = 1, delay: TimeInterval = 0.6) {
@@ -40,6 +36,8 @@ final class ScreenshotTests: XCTestCase {
     }
 
     func testScreenshots() throws {
+        continueAfterFailure = false
+
         let app = XCUIApplication()
         app.launchArguments += ["-server_url", "http://localhost:8484"]
         app.launch()
