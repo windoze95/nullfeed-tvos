@@ -22,17 +22,30 @@ final class ScreenshotTests: XCTestCase {
         }
     }
 
-    /// Walk focus onto the tab bar, then move right until `name` has focus.
-    private func focusTab(_ app: XCUIApplication, _ name: String) {
+    /// Menu jumps focus to the tab bar; walk to the leftmost tab, then right
+    /// to the wanted index. Blind by design — element focus queries throw when
+    /// the element is missing, and tab order is stable (see MainTabView).
+    private func focusTab(index: Int) {
         press(.menu)
         Thread.sleep(forTimeInterval: 0.8)
-        // Move to the leftmost tab first, then scan right.
-        press(.left, times: 7, delay: 0.35)
-        for _ in 0..<10 {
-            if app.buttons[name].hasFocus || app.otherElements[name].hasFocus { break }
-            press(.right, delay: 0.5)
+        press(.left, times: 6, delay: 0.35)
+        if index > 0 {
+            press(.right, times: index, delay: 0.5)
         }
-        Thread.sleep(forTimeInterval: 1.0)
+        Thread.sleep(forTimeInterval: 1.2)
+    }
+
+    /// The first sign-in triggers the notifications permission alert. Focus
+    /// starts on "Don't Allow"; move right to "Allow" and select. `exists`
+    /// (unlike `hasFocus`) is safe on missing elements.
+    private func dismissNotificationAlert(_ app: XCUIApplication) {
+        let shell = XCUIApplication(bundleIdentifier: "com.apple.PineBoard")
+        for host in [app, shell] where host.buttons["Allow"].exists {
+            press(.right, delay: 0.5)
+            press(.select)
+            Thread.sleep(forTimeInterval: 1.5)
+            return
+        }
     }
 
     func testScreenshots() throws {
@@ -66,21 +79,27 @@ final class ScreenshotTests: XCTestCase {
 
         // 2. Home: select the focused (first) profile card.
         press(.select)
-        Thread.sleep(forTimeInterval: 10)  // feed + artwork
+        Thread.sleep(forTimeInterval: 6)
+        dismissNotificationAlert(app)
+        Thread.sleep(forTimeInterval: 6)  // feed + artwork
+        dismissNotificationAlert(app)     // in case it appeared late
         capture("home")
+        press(.down, times: 2, delay: 0.8) // scroll to richer rows
+        Thread.sleep(forTimeInterval: 1.5)
+        capture("home_feed")
 
         // 3. Channels (library)
-        focusTab(app, "Channels")
+        focusTab(index: 2)
         Thread.sleep(forTimeInterval: 4)
         capture("library")
 
         // 4. Explore (discover)
-        focusTab(app, "Explore")
+        focusTab(index: 3)
         Thread.sleep(forTimeInterval: 6)
         capture("discover")
 
         // 5. Channel detail: back to Channels, into the grid, open first channel.
-        focusTab(app, "Channels")
+        focusTab(index: 2)
         Thread.sleep(forTimeInterval: 2)
         press(.down)             // move focus into the channel grid
         Thread.sleep(forTimeInterval: 1)
