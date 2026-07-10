@@ -5,6 +5,8 @@ name: Store Screenshots
 # true-framebuffer PNGs.
 on:
   workflow_dispatch:
+  push:
+    branches: [chore/store-screenshots]
 
 jobs:
   capture:
