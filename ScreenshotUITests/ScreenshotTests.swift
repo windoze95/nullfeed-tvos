@@ -41,10 +41,26 @@ final class ScreenshotTests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += ["-server_url", "http://localhost:8484"]
         app.launch()
+        Thread.sleep(forTimeInterval: 5)
+        capture("launch_state")
+
+        // 0. Server setup: the app never auto-connects, so with the saved URL
+        // prefilled the first screen is ServerSetupView. Press Connect.
+        if app.buttons["Connect"].waitForExistence(timeout: 10) {
+            capture("server_setup")
+            for _ in 0..<4 where !app.buttons["Connect"].hasFocus {
+                press(.down, delay: 0.5)
+            }
+            press(.select)
+        }
 
         // 1. Profile picker
-        XCTAssertTrue(app.staticTexts["Demo User"].waitForExistence(timeout: 20),
-                      "profile picker should list Demo User")
+        let demoUser = app.staticTexts["Demo User"]
+        if !demoUser.waitForExistence(timeout: 30) {
+            capture("failure_state")
+            print("UI TREE DUMP:\n\(app.debugDescription)")
+            XCTFail("profile picker should list Demo User")
+        }
         Thread.sleep(forTimeInterval: 3)
         capture("profile_picker")
 

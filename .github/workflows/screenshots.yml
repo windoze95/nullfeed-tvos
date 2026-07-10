@@ -71,12 +71,17 @@ jobs:
         run: |
           mkdir -p shots
           UDID=${{ steps.sim.outputs.udid }} OUTDIR=$PWD/shots PORT=8766 nohup python3 scripts/capture_server.py > /tmp/capture-server.log 2>&1 &
-          sleep 1
-          curl -sf -o /dev/null http://localhost:8766/capture/smoke
+          for i in $(seq 1 15); do
+            curl -sf -o /dev/null http://localhost:8766/capture/smoke && break
+            sleep 1
+          done
+          curl -sf -o /dev/null http://localhost:8766/capture/smoke || { cat /tmp/capture-server.log; exit 1; }
           rm -f shots/smoke.png
 
       - name: Run screenshot driver
         run: |
+          # Belt-and-braces alongside the -server_url launch argument.
+          xcrun simctl spawn ${{ steps.sim.outputs.udid }} defaults write codes.julian.nullfeed server_url "http://localhost:8484"
           xcodebuild test \
             -project NullFeed.xcodeproj \
             -scheme Screenshots \
