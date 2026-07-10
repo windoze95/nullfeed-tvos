@@ -121,7 +121,29 @@ targets:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: codes.julian.nullfeed.tests
         GENERATE_INFOPLIST_FILE: true
+  NullFeedScreenshotUITests:
+    type: bundle.ui-testing
+    platform: tvOS
+    sources:
+      - ScreenshotUITests
+    dependencies:
+      - target: NullFeed
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: codes.julian.nullfeed.screenshots
+        GENERATE_INFOPLIST_FILE: true
 schemes:
+  Screenshots:
+    build:
+      targets:
+        NullFeed: all
+        NullFeedScreenshotUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - NullFeedScreenshotUITests
   NullFeed:
     build:
       targets:

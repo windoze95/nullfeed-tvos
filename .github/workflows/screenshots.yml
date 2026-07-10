@@ -1,0 +1,90 @@
+name: Store Screenshots
+
+# Manual-only: captures App Store screenshots by driving the real app with
+# XCUIRemote against the nullfeed-demo server on a tvOS simulator, saving
+# true-framebuffer PNGs.
+on:
+  workflow_dispatch:
+
+jobs:
+  capture:
+    runs-on: macos-26
+    timeout-minutes: 90
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Select Xcode 26
+        uses: maxim-lobanov/setup-xcode@v1
+        with:
+          xcode-version: '26'
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Generate Xcode project
+        run: xcodegen generate
+
+      - name: Download tvOS Simulator
+        run: |
+          if xcrun simctl list runtimes | grep -q tvOS; then
+            echo "tvOS runtime already installed"
+          else
+            for i in 1 2 3; do
+              if xcodebuild -downloadPlatform tvOS; then
+                break
+              fi
+              echo "Attempt $i failed, retrying in 10s..."
+              sleep 10
+            done
+            xcrun simctl list runtimes | grep -q tvOS || { echo "tvOS runtime not available after retries"; exit 1; }
+          fi
+
+      - name: Start demo server
+        run: |
+          git clone --depth 1 https://github.com/windoze95/nullfeed-demo.git /tmp/nullfeed-demo
+          cd /tmp/nullfeed-demo
+          python3 -m pip install -r requirements.txt || python3 -m pip install --break-system-packages -r requirements.txt
+          bash download_content.sh
+          python3 seed.py
+          (python3 main.py > /tmp/demo-server.log 2>&1 &)
+          for i in $(seq 1 20); do
+            curl -sf http://localhost:8484/api/health && break
+            sleep 1
+          done
+          curl -sf http://localhost:8484/api/health
+
+      - name: Create and boot simulator
+        id: sim
+        run: |
+          DEVTYPE=$(xcrun simctl list devicetypes | grep -F "Apple TV 4K (3rd generation)" | grep -v 1080p | tail -1 | grep -oE 'com\.apple\.CoreSimulator\.SimDeviceType\.[A-Za-z0-9._-]+')
+          RUNTIME=$(xcrun simctl list runtimes | grep -E '^tvOS' | tail -1 | grep -oE 'com\.apple\.CoreSimulator\.SimRuntime\.tvOS[-0-9]+')
+          echo "devicetype=$DEVTYPE runtime=$RUNTIME"
+          UDID=$(xcrun simctl create screenshots-tv "$DEVTYPE" "$RUNTIME")
+          xcrun simctl boot "$UDID"
+          xcrun simctl bootstatus "$UDID" -b
+          echo "udid=$UDID" >> "$GITHUB_OUTPUT"
+
+      - name: Start capture server
+        run: |
+          mkdir -p shots
+          UDID=${{ steps.sim.outputs.udid }} OUTDIR=$PWD/shots PORT=8766 nohup python3 scripts/capture_server.py > /tmp/capture-server.log 2>&1 &
+          sleep 1
+          curl -sf -o /dev/null http://localhost:8766/capture/smoke
+          rm -f shots/smoke.png
+
+      - name: Run screenshot driver
+        run: |
+          xcodebuild test \
+            -project NullFeed.xcodeproj \
+            -scheme Screenshots \
+            -destination "id=${{ steps.sim.outputs.udid }}" \
+            CODE_SIGNING_ALLOWED=NO
+
+      - name: Upload screenshots
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: shots-tvos
+          path: shots/
+          if-no-files-found: warn
