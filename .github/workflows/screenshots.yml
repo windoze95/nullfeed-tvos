@@ -44,6 +44,9 @@ jobs:
 
       - name: Start demo server
         run: |
+          # ffmpeg lets seed.py extract real thumbnail frames instead of
+          # falling back to flat placeholder tiles.
+          command -v ffmpeg >/dev/null || brew install ffmpeg
           git clone --depth 1 https://github.com/windoze95/nullfeed-demo.git /tmp/nullfeed-demo
           cd /tmp/nullfeed-demo
           python3 -m pip install -r requirements.txt || python3 -m pip install --break-system-packages -r requirements.txt
